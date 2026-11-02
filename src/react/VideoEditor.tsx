@@ -282,10 +282,10 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
     let durationMs = media.durationMs ?? 0;
     let width = 0;
     let height = 0;
-    if (media.kind !== "image" && !durationMs) {
-      const probed = await probeUrl(media.url ?? adapter.mediaUrl({ ref: media.ref, kind: media.kind, name: media.name ?? media.ref }), media.kind);
-      ({ duration_ms: durationMs, width, height } = probed);
-    }
+    // Its size is always read (to fit or fill it to the frame); its length when the host did not say.
+    const probed = await probeUrl(media.url ?? adapter.mediaUrl({ ref: media.ref, kind: media.kind, name: media.name ?? media.ref }), media.kind);
+    if (!durationMs) durationMs = probed.duration_ms;
+    ({ width, height } = probed);
     placeAsset({ id: newId("a"), kind: media.kind, ref: media.ref, name: (media.name ?? media.ref).slice(0, 200), duration_ms: durationMs, width, height }, true, at);
   }
 
@@ -514,7 +514,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
         </section>
 
         {f.inspector ? (
-          selection ? <Inspector key={selection.clip.id} timeline={timeline} track={selection.track} clip={selection.clip} playhead={time} onChange={(next, o) => (o?.live ? live(next) : edit(next))} onCommit={() => commit()} />
+          selection ? <Inspector key={selection.clip.id} timeline={timeline} track={selection.track} clip={selection.clip} playhead={time} frame={size} onChange={(next, o) => { setReview(null); if (o?.live) live(next); else edit(next); }} onCommit={() => commit()} />
           : <section className={cx("panel", "ve-panel ve-inspector")}><h2 className={cx("heading", "ve-heading")}>{t("clipSettings")}</h2><p className="ve-muted">{t("selectAClip")}</p></section>
         ) : null}
 
@@ -558,7 +558,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
               </details>
             </div>
           </div>
-          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} onDrop={dropped} snapping={snapping} addMode={addMode} />
+          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => { if (id) setReview(null); dispatch({ type: "select", id }); }} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} onDrop={dropped} snapping={snapping} addMode={addMode} />
         </section>
       </div>
 

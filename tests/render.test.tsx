@@ -36,6 +36,7 @@ describe("the editor renders what is configured", () => {
   });
 
   it("hides the timeline's transport and screen when asked (the review player takes their place)", async () => {
+    // @ts-ignore -- Node's fs, there under vitest (the package's types leave Node out)
     const css = (await import("node:fs")).readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
     expect(css).toContain(".ve-transport[hidden]");
   });

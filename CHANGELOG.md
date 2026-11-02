@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.4
+- The preview's surround is dark grey, not black, so the video frame's edges always show (a picture
+  fitted into a frame of another shape has visible black bars inside the frame, not everywhere).
+- Placement has **Fit** (all of the picture shows) and **Fill the frame** (it covers the frame, edges
+  cut); the size slider goes up to 4×. A file's size is always read when it is added, or read from the
+  file when an older project lacks it.
+- Reviewing a file fits it whole into the screen, whatever its size (a 720p or larger file was cut off).
+- Selecting a clip, or changing its settings, leaves the review and shows the timeline again.
+
 ## 0.5.3
 - Reviewing a library file has its own transport, like the timeline's: to start, back and forward a
   second (Shift: five), play and pause, a position slider with the time, and sound on or off; Space

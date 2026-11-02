@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
+import { probeUrl } from "../core/capture";
 import { cropPresets, effectsOffered } from "../core/config";
 import { cropToRatio } from "../core/state";
 import { EFFECTS, MIN_CLIP_MS, alignClip, assetOf, clipEnd, moveClip, setEffect, setSpeed, trimEnd, trimStart, updateClip, type Clip, type Timeline, type Track } from "../core/timeline";
@@ -11,6 +12,8 @@ interface Props {
   track: Track;
   clip: Clip;
   playhead: number;
+  /** The video's picture size, to fit or fill a clip to it. */
+  frame?: { width: number; height: number };
   onChange: (next: Timeline, opts?: { live?: boolean }) => void;
   onCommit: () => void;
 }
@@ -26,13 +29,22 @@ const seconds = (ms: number) => Math.round(ms / 10) / 100;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 /** The selected clip's settings. Every control is a labelled field, so nothing depends on dragging (WCAG 2.5.7). */
-export function Inspector({ timeline, track, clip, playhead, onChange, onCommit }: Props) {
-  const { config, t } = useEditor();
+export function Inspector({ timeline, track, clip, playhead, frame, onChange, onCommit }: Props) {
+  const { config, adapter, t } = useEditor();
   const cx = useCx();
   const uid = useId();
   const f = config.features;
   const asset = assetOf(timeline, clip);
   const hasPicture = track.kind === "video";
+  // A picture's own size (to fit or fill it): from the project, else read from the file.
+  const [probed, setProbed] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!asset || asset.kind === "audio" || asset.width > 0) return;
+    let live = true;
+    void probeUrl(adapter.mediaUrl(asset), asset.kind).then((p) => { if (live && p.width) setProbed({ width: p.width, height: p.height }); });
+    return () => { live = false; };
+  }, [asset, adapter]);
+  const dims = asset && asset.width > 0 ? { width: asset.width, height: asset.height } : probed;
   const btn2 = cx("buttonSecondary", "ve-button ve-button--secondary");
   const acts = cx("actions", "ve-actions");
   const field = cx("field", "ve-field");
@@ -153,10 +165,24 @@ export function Inspector({ timeline, track, clip, playhead, onChange, onCommit 
               </button>
             ))}
           </div>
+          {hasPicture && frame && dims && dims.width > 0 && dims.height > 0 ? (() => {
+            // Fit: the whole picture shows (bars where its shape differs). Fill: it covers the frame (edges cut).
+            const crop = clip.crop ?? { x: 0, y: 0, w: 1, h: 1 };
+            const cw = dims.width * crop.w;
+            const ch = dims.height * crop.h;
+            const fill = Math.max(frame.width / cw, frame.height / ch) / Math.min(frame.width / cw, frame.height / ch);
+            const at = (s: number) => Math.abs(clip.scale - s) < 0.005 && clip.x === 0 && clip.y === 0;
+            return (
+              <div className={acts} role="group" aria-label={t("fitGroup")}>
+                <button type="button" className={btn2} aria-pressed={at(1)} onClick={() => onChange(updateClip(timeline, clip.id, { scale: 1, x: 0, y: 0 }))}>{t("fitFrame")}</button>
+                <button type="button" className={btn2} aria-pressed={at(fill)} disabled={Math.abs(fill - 1) < 0.005} onClick={() => onChange(updateClip(timeline, clip.id, { scale: Math.min(4, Math.round(fill * 1000) / 1000), x: 0, y: 0 }))}>{t("fillFrame")}</button>
+              </div>
+            );
+          })() : null}
           <span className="ve-hint">{t("dragOnPreview")}</span>
           {range(t("across"), clip.x, -1, 1, 0.01, (n) => updateClip(timeline, clip.id, { x: n }), (n) => pos(n, "right", "left"))}
           {range(t("upDown"), clip.y, -1, 1, 0.01, (n) => updateClip(timeline, clip.id, { y: n }), (n) => pos(n, "lower", "higher"))}
-          {range(t("size"), clip.scale, 0.1, 3, 0.05, (n) => updateClip(timeline, clip.id, { scale: n }), pct)}
+          {range(t("size"), clip.scale, 0.1, 4, 0.05, (n) => updateClip(timeline, clip.id, { scale: n }), pct)}
           {range(t("opacity"), clip.opacity, 0, 1, 0.01, (n) => updateClip(timeline, clip.id, { opacity: n }), pct)}
         </fieldset>
       ) : null}

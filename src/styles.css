@@ -62,7 +62,8 @@
 .ve-stage { grid-area: stage; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
 .ve-inspector { grid-area: inspector; }
 .ve-tl { grid-area: tl; display: flex; flex-direction: column; min-height: 0; }
-.ve-stage__screen { display: grid; place-items: center; background: #000; border-radius: var(--ve-radius); min-height: 12rem; overflow: hidden; }
+/* Around the picture is a dark grey, not black, so the edges of the video's frame always show. */
+.ve-stage__screen { --ve-screen: #262b33; display: grid; place-items: center; background: var(--ve-screen); border-radius: var(--ve-radius); min-height: 12rem; overflow: hidden; }
 @media (min-width: 62rem) {
   .ve-root[data-layout="workspace"] { display: flex; flex-direction: column; gap: 0.5rem; height: var(--ve-height); min-height: 34rem; }
   .ve-root[data-layout="workspace"] > .ve-work { flex: 1; min-height: 0;
@@ -101,7 +102,7 @@
 .ve-record__time, .ve-transport__time { font-variant-numeric: tabular-nums; }
 .ve-inspector fieldset { border: 1px solid var(--ve-border); border-radius: var(--ve-radius); margin: 0 0 0.75rem; }
 /* The picture is as large as its area allows, never cropped or stretched. */
-.ve-stage__canvas { display: block; width: 100%; height: auto; background: #000; object-fit: contain; }
+.ve-stage__canvas { display: block; width: 100%; height: auto; background: transparent; object-fit: contain; }
 .ve-root[data-layout="stacked"] .ve-stage__canvas { max-height: 60vh; }
 @media (max-width: 61.99rem) { .ve-stage__canvas { max-height: 55vh; } }
 .ve-transport { display: flex; gap: 0.35rem; align-items: center; }
@@ -221,13 +222,15 @@
 .ve-guide--v { top: 0; bottom: 0; left: 50%; width: 1px; }
 .ve-guide--h { left: 0; right: 0; top: 50%; height: 1px; }
 .ve-stage__screen[hidden], .ve-transport[hidden] { display: none !important; }
-.ve-review__screen { display: grid; place-items: center; }
+.ve-review__screen { display: grid; place-items: center; position: relative; }
+/* The file is fitted whole into the screen, whatever its size or shape. */
+.ve-review__screen .ve-review__media { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; background: transparent; }
+.ve-root[data-layout="stacked"] .ve-review__screen { aspect-ratio: 16 / 9; }
 .ve-review__screen .ve-review__media { cursor: pointer; }
 .ve-review__sound { display: grid; place-items: center; width: 100%; height: 100%; min-height: 10rem; font-size: 3rem; color: #fff; background: radial-gradient(circle, var(--ve-audio), #000 75%); cursor: pointer; }
 .ve-review__sound audio { display: none; }
 .ve-review { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
 .ve-review__name { flex: 1 1 10rem; margin: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ve-review__media { display: block; max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; background: #000; }
 
 /* --- Library tiles with their own Add button; insert or replace. ----------------------------------- */
 .ve-tile-wrap { display: grid; gap: 0.2rem; }

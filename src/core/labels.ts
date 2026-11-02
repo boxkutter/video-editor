@@ -275,6 +275,9 @@ export const DEFAULT_LABELS = {
   placeLeft: "Left",
   placeCentre: "Centre",
   placeRight: "Right",
+  fitGroup: "Fit to the frame",
+  fitFrame: "Fit (show all of it)",
+  fillFrame: "Fill the frame (edges cut)",
   dragOnPreview: "You can also drag a title or picture on the preview.",
   // playhead
   playhead: "Playhead",
