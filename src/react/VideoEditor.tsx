@@ -1,13 +1,16 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import type { EditorAdapter, MediaRef, Project } from "../core/adapter";
-import { resolveConfig, type EditorOptions } from "../core/config";
+import { effectsOffered, resolveConfig, type EditorOptions } from "../core/config";
+import { probeUrl } from "../core/capture";
 import { VideoEngine, supportsEditing } from "../core/engine";
 import { createT, type LabelOverrides } from "../core/labels";
 import { initialState, reduce, sizeId } from "../core/state";
-import { MAX_DURATION_MS, addAsset, addAssetClip, addTitle, addTrack, closeGaps, duplicateClip, emptyTimeline, findClip, formatTime, removeClip, rippleRemove, splitClip, timelineEnd, type Asset, type Timeline } from "../core/timeline";
+import { applyLook, applyTransition, takesLook, type LookId, type TransitionId } from "../core/styles";
+import { MAX_DURATION_MS, addAsset, addAssetClip, addTitle, addTrack, closeGaps, duplicateClip, emptyTimeline, findClip, formatTime, newId, removeClip, rippleRemove, splitClip, timelineEnd, type Asset, type Timeline } from "../core/timeline";
 import { withDuration } from "../core/webm";
 import { EditorProvider, useCx, useEditor, type ClassNames } from "./context";
 import { Inspector } from "./Inspector";
+import { type DragPayload } from "./drag";
 import { MediaPanel } from "./MediaPanel";
 import { TimelinePanel } from "./Timeline";
 
@@ -28,6 +31,10 @@ export interface VideoEditorProps {
   existingExport?: MediaRef | null;
   /** Content above the editor, inside its root. */
   header?: ReactNode;
+  /** Changing this lists the host's library again (`adapter.listMedia`), for example after the host's rules for it change. */
+  libraryKey?: unknown;
+  /** Content at the start of the top bar, before the title (for example a link back to the host's list). */
+  barStart?: ReactNode;
 }
 
 export interface VideoEditorHandle {
@@ -52,7 +59,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, VideoEditorProps>(funct
   );
 });
 
-function Editor({ project, existingExport, exportActions, header, className, handleRef }: VideoEditorProps & { handleRef: React.Ref<VideoEditorHandle> }) {
+function Editor({ project, existingExport, exportActions, header, barStart, libraryKey, className, handleRef }: VideoEditorProps & { handleRef: React.Ref<VideoEditorHandle> }) {
   const { config, adapter, t } = useEditor();
   const cx = useCx();
   const uid = useId();
@@ -162,15 +169,54 @@ function Editor({ project, existingExport, exportActions, header, className, han
     if (b) dispatch({ type: "commit", before: b });
   }, []);
 
-  function placeAsset(asset: Asset, addToTimeline: boolean) {
+  // Media arrives after an upload or a probe, so these read the timeline as it is then, not as it was.
+  function placeAsset(asset: Asset, addToTimeline: boolean, place?: { trackId?: string; at: number }) {
+    const timeline = stateRef.current.timeline;
     if (timeline.assets.length >= config.limits.maxAssets) return setMessage(t("fileRefused", { name: asset.name }));
     let next = addAsset(timeline, asset);
     let select: string | null | undefined;
     if (addToTimeline) {
-      const placed = addAssetClip(next, asset.id, asset.kind === "audio" ? time : 0);
+      const placed = addAssetClip(next, asset.id, place?.at ?? (asset.kind === "audio" ? time : 0), place?.trackId);
       if (placed) { next = placed.timeline; select = placed.clipId; }
     }
     edit(next, select);
+  }
+
+  /** A library file onto the timeline (at the playhead, or where it was dropped); added to the project once. */
+  async function addMedia(media: MediaRef, place?: { trackId?: string; at: number }) {
+    setMessage(null);
+    const at = place ?? { at: time };
+    const known = stateRef.current.timeline.assets.find((a) => a.ref === media.ref && a.kind === media.kind);
+    if (known) {
+      const placed = addAssetClip(stateRef.current.timeline, known.id, at.at, at.trackId);
+      if (placed) edit(placed.timeline, placed.clipId);
+      return;
+    }
+    let durationMs = media.durationMs ?? 0;
+    let width = 0;
+    let height = 0;
+    if (media.kind !== "image" && !durationMs) {
+      const probed = await probeUrl(media.url ?? adapter.mediaUrl({ ref: media.ref, kind: media.kind, name: media.name ?? media.ref }), media.kind);
+      ({ duration_ms: durationMs, width, height } = probed);
+    }
+    placeAsset({ id: newId("a"), kind: media.kind, ref: media.ref, name: (media.name ?? media.ref).slice(0, 200), duration_ms: durationMs, width, height }, true, at);
+  }
+
+  function applyStyle(style: { look: LookId } | { transition: TransitionId }, clipId: string, at?: number) {
+    const current = stateRef.current.timeline;
+    if ("look" in style) {
+      if (!takesLook(current, clipId)) return setMessage(t("lookNeedsPicture"));
+      edit(applyLook(current, clipId, style.look, effectsOffered(config)), clipId);
+    } else edit(applyTransition(current, clipId, style.transition, at), clipId);
+  }
+
+  function dropped(payload: DragPayload, place: { trackId: string; at: number; clipId: string | null }) {
+    if ("asset" in payload) {
+      const placed = addAssetClip(stateRef.current.timeline, payload.asset, place.at, place.trackId);
+      if (placed) edit(placed.timeline, placed.clipId);
+    } else if ("media" in payload) void addMedia(payload.media, place);
+    else if (place.clipId) applyStyle(payload, place.clipId, place.at);
+    else setMessage(t("dropOntoClip"));
   }
 
   function split() {
@@ -230,6 +276,7 @@ function Editor({ project, existingExport, exportActions, header, className, han
       {header}
       {/* The top bar: the title, the picture settings in a popover, undo/redo, saving and export. One slim row. */}
       <div className={cx("panel", "ve-topbar")} role="toolbar" aria-label={t("projectBar")}>
+        {barStart ? <div className="ve-topbar__start">{barStart}</div> : null}
         {f.projectBar ? (
           <input id={`${uid}-title`} className={`${input} ve-topbar__title`} aria-label={t("projectTitle")} value={title} maxLength={300}
             onChange={(e) => { setTitle(e.target.value); metaRevision.current += 1; }} />
@@ -282,7 +329,8 @@ function Editor({ project, existingExport, exportActions, header, className, han
       {message ? <p className={cx("alert", "ve-alert")} role="alert">{message}</p> : null}
 
       <div className="ve-work" data-media={f.mediaPanel} data-inspector={f.inspector}>
-        {f.mediaPanel ? <MediaPanel timeline={timeline} onAsset={placeAsset} onAddToTimeline={(id) => { const p = addAssetClip(timeline, id, time); if (p) edit(p.timeline, p.clipId); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
+        {f.mediaPanel ? <MediaPanel timeline={timeline} onAsset={placeAsset} onAddMedia={(m) => void addMedia(m)} libraryKey={libraryKey}
+          selection={selection ? { clipId: selection.clip.id, kind: selection.track.kind } : null} onStyle={(style, id) => applyStyle(style, id)} onAddToTimeline={(id) => { const p = addAssetClip(timeline, id, time); if (p) edit(p.timeline, p.clipId); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
 
         <section className={cx("panel", "ve-panel ve-stage")} aria-labelledby={`${uid}-preview`} hidden={!f.preview}>
           <h2 id={`${uid}-preview`} className="ve-visually-hidden">{t("preview")}</h2>
@@ -331,7 +379,7 @@ function Editor({ project, existingExport, exportActions, header, className, han
               <p className="ve-hint">{t("timelineHelp")}</p>
             </details>
           </div>
-          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} />
+          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} onDrop={dropped} />
         </section>
       </div>
 

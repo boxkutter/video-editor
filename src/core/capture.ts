@@ -150,12 +150,16 @@ export function recordingName(mode: CaptureMode, mimeType: string, at = new Date
 /** Length and size of a media file, read by loading its metadata. A recording's WebM reports
  *  an infinite length until the end is read, so that case seeks far past it first. */
 export function probeMedia(file: Blob, kind: "video" | "audio" | "image"): Promise<{ duration_ms: number; width: number; height: number }> {
+  const url = URL.createObjectURL(file);
+  return probeUrl(url, kind).finally(() => URL.revokeObjectURL(url));
+}
+
+/** The same, for a file the host already holds (by the URL it plays from). */
+export function probeUrl(url: string, kind: "video" | "audio" | "image"): Promise<{ duration_ms: number; width: number; height: number }> {
   return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const done = (result: { duration_ms: number; width: number; height: number }) => {
-      URL.revokeObjectURL(url);
-      resolve(result);
-    };
+    // A file that never answers (a slow or refused link) counts as unknown after 15 seconds.
+    const timer = setTimeout(() => resolve({ duration_ms: 0, width: 0, height: 0 }), 15_000);
+    const done = (result: { duration_ms: number; width: number; height: number }) => { clearTimeout(timer); resolve(result); };
     if (kind === "image") {
       const img = new Image();
       img.onload = () => done({ duration_ms: 0, width: img.naturalWidth, height: img.naturalHeight });

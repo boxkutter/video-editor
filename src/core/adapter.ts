@@ -22,6 +22,16 @@ export interface MediaRef {
   url?: string;
 }
 
+/** A file offered in the editor's own library tab (`listMedia`). */
+export interface LibraryItem extends MediaRef {
+  /** A heading the item is listed under (for example "Media library"). Items keep the order given. */
+  group?: string;
+  /** A line shown under the group's heading (taken from the group's first item). */
+  groupNote?: string;
+  /** A small picture for the tile; pictures without one use their own file. */
+  thumbnailUrl?: string;
+}
+
 export interface Project {
   id?: string;
   title: string;
@@ -41,7 +51,13 @@ export interface EditorAdapter {
   uploadMedia?: (file: File, kind: AssetKind, onProgress: (fraction: number) => void) => Promise<MediaRef>;
   /** A URL the browser can play for an asset. Must support Range requests for seeking. */
   mediaUrl: (asset: Pick<Asset, "ref" | "kind" | "name">) => string;
-  /** Choose from the host's own media library. */
+  /**
+   * List the host's media library, shown inside the editor (a Library tab) so files can be added or
+   * dragged straight onto the timeline. Takes precedence over `pickMedia`. Called again when the
+   * editor's `libraryKey` changes.
+   */
+  listMedia?: (kinds: AssetKind[]) => Promise<LibraryItem[]>;
+  /** Choose from the host's own media library in the host's own window (used when there is no `listMedia`). */
   pickMedia?: (kinds: AssetKind[]) => Promise<MediaRef[]>;
   /** Save the project (called by autosave and Save). Throw to report a failure. */
   saveProject?: (project: Project) => Promise<SaveResult | void>;

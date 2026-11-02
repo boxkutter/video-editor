@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0
+- **Media on tabs**: Project, Library, Upload, Record and Effects. Recording is a tab of its own (it
+  carries on while you look at another tab). Upload also takes files dropped onto it.
+- **The library in place**: a new `adapter.listMedia(kinds)` lists the host's files (`LibraryItem`:
+  `group`, `groupNote`, `thumbnailUrl`) as tiles inside the editor, so no separate window is needed.
+  `libraryKey` lists them again. `pickMedia` still works for hosts without `listMedia`.
+- **Drag and drop onto the timeline**: library tiles and the project's files land on the track and at
+  the time where they are dropped (snapped like a moved clip), with a marker showing where. Choosing a
+  tile instead adds it at the playhead.
+- **Looks and transitions** (`core/styles.ts`): ready-made looks (black and white, warm, vivid, bright,
+  moody, faded film, soft focus) and fades (in, out, both, dip through black at a cut), dropped onto a
+  clip or applied to the selected one. They are made of a clip's existing effects and fades, so the
+  timeline schema is unchanged.
+- `barStart`: content at the start of the top bar, before the title (for example a link back to the
+  host's list of videos), so hosts need not spend a row above the editor on it.
+- The media column is a little wider (`--ve-media-side`, default `clamp(16.5rem, 22vw, 21rem)`) so its tabs fit on one row.
+- `probeUrl(url, kind)`: length and size of a file the host holds (used for library files of unknown length).
+
 ## 0.3.0
 - **Workspace layout** (default, `options.layout: "workspace"`), like a desktop video editor: a slim top
   bar (title edited in place, picture size and frame rate in a popover, undo/redo, saving, Export), then

@@ -1,6 +1,7 @@
-import { useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { assetOf, clipEnd, formatTime, moveClip, removeClip, removeTrack, snap, spokenDuration, trimEnd, trimStart, updateTrack, type Clip, type Timeline, type Track } from "../core/timeline";
 import { useCx, useEditor } from "./context";
+import { isMediaDrag, isStyleDrag, readDrag, type DragPayload } from "./drag";
 
 interface Props {
   timeline: Timeline;
@@ -12,6 +13,8 @@ interface Props {
   onLive: (next: Timeline) => void;
   onCommit: (before: Timeline) => void;
   onEdit: (next: Timeline, select?: string | null) => void;
+  /** Something from the media panel was dropped: media on a track at a time, or a look or transition on a clip. */
+  onDrop: (payload: DragPayload, place: { trackId: string; at: number; clipId: string | null }) => void;
 }
 
 type Drag = { mode: "move" | "start" | "end"; clipId: string; originX: number; before: Timeline; start: number; end: number; moved: boolean };
@@ -24,7 +27,7 @@ function tickStep(zoom: number): number {
 }
 
 /** The timeline: a row per track, clips you can select, drag, trim by their ends, or move with the arrow keys. */
-export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, onSeek, onLive, onCommit, onEdit }: Props) {
+export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, onSeek, onLive, onCommit, onEdit, onDrop }: Props) {
   const { config, t } = useEditor();
   const cx = useCx();
   const drag = useRef<Drag | null>(null);
@@ -39,6 +42,34 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
   const ticks = Array.from({ length: Math.floor(end / 1000 / step) + 1 }, (_, i) => i * step);
   const kindName = { video: t("trackVideo"), audio: t("trackAudio"), text: t("trackText") } as const;
   const nameOf = (clip: Clip) => (clip.text ? clip.text.content.replace(/\s+/g, " ").slice(0, 40) : (assetOf(timeline, clip)?.name ?? t("clipHeading")));
+
+  // Where a drag from the media panel would land: a place on a track, or (for a look) a clip.
+  const [target, setTarget] = useState<{ trackId: string; at: number; clipId: string | null; style: boolean } | null>(null);
+
+  function placeOf(event: DragEvent<HTMLElement>, trackId: string) {
+    const lane = event.currentTarget.getBoundingClientRect();
+    const at = snap(timeline, Math.max(0, ms(event.clientX - lane.left)), playhead, null, ms(8));
+    const clipId = (event.target as HTMLElement).closest<HTMLElement>("[data-clip-id]")?.dataset.clipId ?? null;
+    return { trackId, at: Math.round(at), clipId };
+  }
+
+  function dragOver(event: DragEvent<HTMLElement>, trackId: string) {
+    if (!isMediaDrag(event)) return;
+    const style = isStyleDrag(event);
+    const place = placeOf(event, trackId);
+    if (style && !place.clipId) { event.dataTransfer.dropEffect = "none"; setTarget(null); return; }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    if (!target || target.trackId !== place.trackId || target.clipId !== place.clipId || Math.abs(target.at - place.at) > 20) setTarget({ ...place, style });
+  }
+
+  function drop(event: DragEvent<HTMLElement>, trackId: string) {
+    const payload = readDrag(event);
+    setTarget(null);
+    if (!payload) return;
+    event.preventDefault();
+    onDrop(payload, placeOf(event, trackId));
+  }
 
   function seekFrom(event: { clientX: number }) {
     const rect = scroller.current?.getBoundingClientRect();
@@ -122,9 +153,16 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
                 </button>
               ) : null}
             </div>
-            <div className="ve-track__lane" style={{ width }} onClick={(e) => { onSelect(null); seekFrom(e); }}>
+            <div className="ve-track__lane" style={{ width }} onClick={(e) => { onSelect(null); seekFrom(e); }}
+              data-drop={target?.trackId === track.id || undefined}
+              onDragOver={(e) => dragOver(e, track.id)} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setTarget(null); }} onDrop={(e) => drop(e, track.id)}>
+              {target?.trackId === track.id && !target.style ? (
+                <span className="ve-drop-marker" style={{ left: px(target.at) }} aria-hidden="true">
+                  <span className="ve-drop-marker__time">{formatTime(target.at)}</span>
+                </span>
+              ) : null}
               {track.clips.map((clip) => (
-                <div key={clip.id} className="ve-clip-wrap" style={{ left: px(clip.start_ms), width: Math.max(6, px(clip.duration_ms)) }}>
+                <div key={clip.id} className="ve-clip-wrap" data-clip-id={clip.id} data-drop={(target?.style && target.clipId === clip.id) || undefined} style={{ left: px(clip.start_ms), width: Math.max(6, px(clip.duration_ms)) }}>
                   <button
                     type="button"
                     className={cx("clip", "ve-clip")}

@@ -14,6 +14,21 @@ describe("the editor renders what is configured", () => {
     expect(out).not.toContain("Make the video"); // no uploadExport in the adapter
   });
 
+  it("puts media on tabs, with the library in place when the host can list it", () => {
+    const out = html({ adapter: { ...adapter, listMedia: async () => [] }, options: { features: { library: true } } });
+    expect(out).toContain('role="tablist"');
+    for (const word of [">Project<", ">Library<", ">Upload<", ">Record<", ">Effects<"]) expect(out).toContain(word);
+    // an empty project opens on the library
+    expect(out).toMatch(/aria-selected="true"[^>]*>Library/);
+    const plain = html({ options: { features: { record: false, effects: false, fades: false, library: false } } });
+    expect(plain).not.toContain(">Record<");
+    expect(plain).not.toContain(">Effects<");
+  });
+
+  it("puts the host's content at the start of the top bar", () => {
+    expect(html({ barStart: <a href="/videos">All videos</a> })).toMatch(/ve-topbar__start"><a href="\/videos">All videos/);
+  });
+
   it("leaves out what is switched off", () => {
     const out = html({ options: { features: { record: false, titles: false, split: false, history: false, mediaPanel: false } } });
     for (const word of ["Record from this computer", "Add title", "Split", "Undo", "Upload video"]) expect(out).not.toContain(word);

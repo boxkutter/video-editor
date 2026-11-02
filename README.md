@@ -108,7 +108,7 @@ options={{
 
 By default the editor is a **workspace**, like a desktop video editor: a slim top bar, then media, preview
 and clip settings side by side with the timeline across the bottom, each scrolling on its own. Give it a
-height with `--ve-height` (default `calc(100vh - 2rem)`); `--ve-timeline-height` and `--ve-side` size the
+height with `--ve-height` (default `calc(100vh - 2rem)`); `--ve-timeline-height`, `--ve-media-side` (the media column) and `--ve-side` (the clip settings) size the
 timeline and the side columns. Below 62rem wide the parts stack. `options.layout: "stacked"` puts everything
 in one column.
 
@@ -117,7 +117,9 @@ in one column.
 - **Words:** `labels={{ ... }}` replaces any text (see `DEFAULT_LABELS`), including translations; `{name}` style placeholders are kept.
 - **Look:** set `--ve-accent`, `--ve-bg`, `--ve-text`, `--ve-border`, `--ve-radius`, `--ve-font` and the rest listed at the top of `styles.css` on any ancestor. Dark mode follows `prefers-color-scheme`, or set `data-theme="dark" | "light"` on `.ve-root`.
 - **Your own styles:** skip `styles.css`, target the `.ve-*` classes, or pass `classNames={{ button: "btn", buttonSecondary: "btn btn-outline", input: "form-control", panel: "card" }}`.
-- **Extra UI:** `header` (above the editor) and `exportActions(media, project)` (after the video is made, for "use in a course" style buttons).
+- **Library:** give the adapter `listMedia(kinds)` (resolving to `LibraryItem[]`: `ref`, `kind`, `name`, `durationMs`, `group`, `groupNote`, `thumbnailUrl`) and switch on `features.library`: the files appear on a Library tab inside the editor, to drag onto the timeline or add at the playhead. Change the `libraryKey` prop to list them again. Without `listMedia`, `pickMedia` opens your own chooser.
+- **Looks and transitions:** an Effects tab offers ready-made looks and fades (`LOOKS`, `TRANSITIONS`, `applyLook`, `applyTransition` in the core), dropped onto a clip. They only set a clip's effects and fades.
+- **Extra UI:** `header` (above the editor), `barStart` (at the start of the top bar, before the title: a link back to your list, say) and `exportActions(media, project)` (after the video is made, for "use in a course" style buttons).
 - **Imperative:** `ref` gives `getProject()` and `save()`.
 
 ## Limits

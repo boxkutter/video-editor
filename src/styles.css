@@ -43,6 +43,7 @@
 
 /* --- The top bar: one slim row (title, picture settings, history, saving, export). ------------ */
 .ve-topbar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; background: var(--ve-surface); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); }
+.ve-topbar__start { display: flex; align-items: center; gap: 0.35rem; padding-right: 0.5rem; border-right: 1px solid var(--ve-border); white-space: nowrap; }
 .ve-topbar__title { flex: 1 1 14rem; min-width: 8rem; font-weight: 600; font-size: 1rem; background: transparent !important; border-color: transparent !important; }
 .ve-topbar__title:hover, .ve-topbar__title:focus { border-color: var(--ve-border) !important; background: var(--ve-bg) !important; }
 .ve-topbar__title--static { padding: 0.4rem 0.5rem; }
@@ -55,7 +56,7 @@
 /* --- The workspace: like a desktop editor, everything in view. Media, preview and clip settings
    side by side, the timeline across the bottom; each part scrolls on its own, so selecting a clip
    or opening a section never moves the others. The host sets the height (--ve-height). --------- */
-.ve-root { --ve-height: calc(100vh - 2rem); --ve-timeline-height: 16rem; --ve-side: clamp(13rem, 20vw, 18rem); }
+.ve-root { --ve-height: calc(100vh - 2rem); --ve-timeline-height: 16rem; --ve-side: clamp(13rem, 20vw, 18rem); --ve-media-side: clamp(16.5rem, 22vw, 21rem); }
 .ve-work { display: grid; gap: 0.5rem; grid-template-columns: 1fr; grid-template-areas: "stage" "tl" "media" "inspector"; }
 .ve-media { grid-area: media; }
 .ve-stage { grid-area: stage; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
@@ -65,11 +66,11 @@
 @media (min-width: 62rem) {
   .ve-root[data-layout="workspace"] { display: flex; flex-direction: column; gap: 0.5rem; height: var(--ve-height); min-height: 34rem; }
   .ve-root[data-layout="workspace"] > .ve-work { flex: 1; min-height: 0;
-    grid-template-columns: minmax(14rem, var(--ve-side)) minmax(0, 1fr) minmax(15rem, var(--ve-side));
+    grid-template-columns: minmax(16.5rem, var(--ve-media-side)) minmax(0, 1fr) minmax(15rem, var(--ve-side));
     grid-template-rows: minmax(0, 1fr) var(--ve-timeline-height);
     grid-template-areas: "media stage inspector" "tl tl tl"; }
   .ve-root[data-layout="workspace"] .ve-work[data-media="false"] { grid-template-columns: minmax(0, 1fr) minmax(15rem, var(--ve-side)); grid-template-areas: "stage inspector" "tl tl"; }
-  .ve-root[data-layout="workspace"] .ve-work[data-inspector="false"] { grid-template-columns: minmax(14rem, var(--ve-side)) minmax(0, 1fr); grid-template-areas: "media stage" "tl tl"; }
+  .ve-root[data-layout="workspace"] .ve-work[data-inspector="false"] { grid-template-columns: minmax(16.5rem, var(--ve-media-side)) minmax(0, 1fr); grid-template-areas: "media stage" "tl tl"; }
   .ve-root[data-layout="workspace"] .ve-work[data-media="false"][data-inspector="false"] { grid-template-columns: 1fr; grid-template-areas: "stage" "tl"; }
   .ve-root[data-layout="workspace"] .ve-media, .ve-root[data-layout="workspace"] .ve-inspector { overflow: auto; min-height: 0; overscroll-behavior: contain; }
   .ve-root[data-layout="workspace"] .ve-stage__screen { flex: 1; min-height: 0; position: relative; }
@@ -96,7 +97,6 @@
 .ve-alert { background: var(--ve-danger-bg); color: var(--ve-danger-text); padding: 0.6rem 0.8rem; border-radius: var(--ve-radius); margin: 0; }
 .ve-assets { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
 .ve-assets__name { font-weight: 600; word-break: break-word; }
-.ve-record { border: 1px solid var(--ve-border); border-radius: var(--ve-radius); padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
 .ve-record__preview { width: 100%; max-height: 14rem; background: #000; border-radius: var(--ve-radius); margin: 0.5rem 0; }
 .ve-record__time, .ve-transport__time { font-variant-numeric: tabular-nums; }
 .ve-inspector fieldset { border: 1px solid var(--ve-border); border-radius: var(--ve-radius); margin: 0 0 0.75rem; }
@@ -119,8 +119,48 @@
 .ve-tl__help { position: relative; font-size: 0.85rem; }
 .ve-tl__help summary { cursor: pointer; color: var(--ve-muted); }
 .ve-tl__help[open] .ve-hint { position: absolute; right: 0; top: 1.6rem; z-index: 20; width: min(28rem, 80vw); padding: 0.75rem; background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
-.ve-record summary { cursor: pointer; font-weight: 600; }
-.ve-record[open] summary { margin-bottom: 0.5rem; }
+
+/* --- Media panel: tabs, library tiles, drop zones. ---------------------------------------------- */
+.ve-tabs { display: flex; gap: 0; margin: 0 0 0.6rem; border-bottom: 1px solid var(--ve-border); overflow-x: auto; scrollbar-width: none; }
+.ve-tabs::-webkit-scrollbar { display: none; }
+.ve-tab { flex: 1 0 auto; justify-content: center; font: inherit; font-size: 0.8rem; white-space: nowrap; padding: 0.35rem 0.45rem; margin-bottom: -1px; color: var(--ve-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem; }
+.ve-tab:hover { color: var(--ve-text); }
+.ve-tab[aria-selected="true"] { color: var(--ve-text); font-weight: 600; border-bottom-color: var(--ve-accent); }
+.ve-tab__count { font-size: 0.7rem; font-weight: 600; min-width: 1.1rem; padding: 0 0.3rem; border-radius: 999px; background: var(--ve-surface); border: 1px solid var(--ve-border); text-align: center; }
+.ve-media__panel[hidden] { display: none; }
+.ve-media__busy { margin-bottom: 0.5rem; }
+.ve-media__busy progress { width: 100%; }
+.ve-assets__item { cursor: grab; }
+.ve-library__group { margin: 0 0 0.75rem; }
+.ve-library__heading { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ve-muted); margin: 0.5rem 0 0.35rem; }
+.ve-library { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.45rem; }
+.ve-tile { display: grid; gap: 0.25rem; width: 100%; padding: 0.25rem; font: inherit; text-align: left; color: inherit; background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); cursor: grab; }
+.ve-tile:hover { border-color: var(--ve-accent); }
+.ve-tile:active { cursor: grabbing; }
+.ve-tile__thumb { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 10; overflow: hidden; border-radius: calc(var(--ve-radius) - 2px); background: var(--ve-surface); color: var(--ve-muted); }
+.ve-tile__thumb img, .ve-tile__thumb video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.ve-tile__note { font-size: 1.4rem; }
+.ve-tile__thumb[data-kind="audio"] { background: color-mix(in srgb, var(--ve-audio) 18%, var(--ve-surface)); color: var(--ve-audio); }
+.ve-tile__time { position: absolute; right: 3px; bottom: 3px; padding: 0 0.25rem; font-size: 0.65rem; font-variant-numeric: tabular-nums; color: #fff; background: rgb(0 0 0 / 0.6); border-radius: 3px; }
+.ve-tile__in { position: absolute; left: 3px; top: 3px; width: 1.1rem; height: 1.1rem; display: grid; place-items: center; font-size: 0.65rem; color: var(--ve-accent-text); background: var(--ve-accent); border-radius: 999px; }
+.ve-tile__name { font-size: 0.72rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+/* A look's swatch: one picture of colour and light, drawn through the look's own filter. */
+.ve-tile__look { background: linear-gradient(135deg, #f6c453 0%, #e8725c 35%, #5b8bd9 70%, #2e5e4e 100%); }
+.ve-tile__look::after { content: ""; position: absolute; inset: 30% 25% 20%; border-radius: 50% 50% 0 0; background: rgb(255 255 255 / 0.55); }
+.ve-tile__fade { font-size: 1.3rem; color: var(--ve-text); }
+.ve-tile__fade[data-fade="fade_in"] { background: linear-gradient(90deg, #000, var(--ve-surface) 70%); }
+.ve-tile__fade[data-fade="fade_out"] { background: linear-gradient(90deg, var(--ve-surface) 30%, #000); }
+.ve-tile__fade[data-fade="fade_both"] { background: linear-gradient(90deg, #000, var(--ve-surface) 35%, var(--ve-surface) 65%, #000); }
+.ve-tile__fade[data-fade="dip"] { background: linear-gradient(90deg, var(--ve-surface), #000 50%, var(--ve-surface)); color: #fff; }
+.ve-dropzone { margin-top: 0.5rem; padding: 1.25rem 0.75rem; text-align: center; font-size: 0.85rem; color: var(--ve-muted); border: 2px dashed var(--ve-border); border-radius: var(--ve-radius); }
+.ve-dropzone[data-active] { border-color: var(--ve-accent); color: var(--ve-text); background: color-mix(in srgb, var(--ve-accent) 8%, transparent); }
+.ve-record { margin: 0; }
+.ve-record > .ve-heading { margin-top: 0; }
+/* Where a drop from the media panel lands on the timeline. */
+.ve-track__lane[data-drop] { background: color-mix(in srgb, var(--ve-accent) 7%, transparent); }
+.ve-drop-marker { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ve-accent); z-index: 2; pointer-events: none; }
+.ve-drop-marker__time { position: absolute; top: -1px; left: 4px; padding: 0 0.25rem; font-size: 0.65rem; white-space: nowrap; color: var(--ve-accent-text); background: var(--ve-accent); border-radius: 3px; }
+.ve-clip-wrap[data-drop] .ve-clip { outline: 3px solid var(--ve-focus); outline-offset: 1px; }
 
 /* --- Export opens over the workspace. ---------------------------------------------------------- */
 .ve-sheet { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 0.45); }

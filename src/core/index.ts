@@ -5,4 +5,5 @@ export * from "./adapter";
 export * from "./labels";
 export * from "./engine";
 export * from "./capture";
+export * from "./styles";
 export { withDuration } from "./webm";
