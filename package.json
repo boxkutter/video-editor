@@ -1,6 +1,6 @@
 {
   "name": "@boxkutter/video-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An embeddable, configurable browser video editor: record or upload, trim, crop, titles, effects and a timeline. Framework-free core, React UI and a web component.",
   "license": "UNLICENSED",
   "private": false,
@@ -39,6 +39,7 @@
     "build": "tsup && cp src/styles.css dist/styles.css",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "peerDependencies": {

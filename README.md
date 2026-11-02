@@ -13,6 +13,8 @@ Browsers: current Chrome, Edge, Firefox. Safari cannot yet make the finished vid
 
 ```bash
 npm install @boxkutter/video-editor
+# or straight from the repository (the `prepare` script builds it):
+npm install github:boxkutter/video-editor#v0.2.0
 ```
 
 It is published to GitHub Packages. Add to your `.npmrc`:
@@ -74,7 +76,7 @@ Set properties, not attributes. It renders in the light DOM so your CSS variable
 |---|---|---|
 | `mediaUrl(asset)` | everything | A URL the browser can play. Same origin, or CORS-enabled with `options.crossOrigin: "anonymous"`. Must support `Range`. |
 | `uploadMedia(file, kind, onProgress)` | upload, recording | Return `{ ref, kind }`. Throw to refuse; the message is shown. Missing: upload and recording are off. |
-| `uploadExport(file, onProgress, project)` | making the video | Missing: no export. |
+| `uploadExport(file, onProgress, project)` | making the video | Missing: no export. Return a `MediaRef`; give it a `url` (for example `URL.createObjectURL(file)`) when your server still has to process the file, then pass the processed file as `existingExport` once it exists. |
 | `saveProject(project)` | autosave, Save | Missing: no saving UI. |
 | `pickMedia(kinds)` | `features.library` | Your own media library. |
 | `onChange`, `onExported`, `onError` | | Hooks for your app. |

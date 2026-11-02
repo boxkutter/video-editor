@@ -40,7 +40,7 @@
 .ve-hint { font-size: 0.85rem; display: block; }
 .ve-panel { background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); padding: var(--ve-gap); min-width: 0; }
 .ve-heading { margin: 0 0 0.5rem; font-size: 1.1rem; }
-.ve-bar { display: flex; flex-wrap: wrap; gap: var(--ve-gap); align-items: end; }
+.ve-bar { display: flex; flex-wrap: wrap; gap: var(--ve-gap); align-items: flex-end; }
 .ve-bar__title { flex: 1 1 16rem; }
 .ve-bar__save { margin: 0; }
 .ve-main { display: grid; gap: var(--ve-gap); grid-template-columns: 1fr; align-items: start; }

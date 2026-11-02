@@ -14,6 +14,12 @@ export interface MediaRef {
   kind: AssetKind;
   /** Known length in milliseconds, so the editor need not probe the file. */
   durationMs?: number;
+  /**
+   * A URL to play this file directly, used instead of `mediaUrl`. For a host that processes the
+   * finished video on its server (transcoding, review), `uploadExport` can return the just-made
+   * video as a local object URL here, to show it until the processed file exists.
+   */
+  url?: string;
 }
 
 export interface Project {

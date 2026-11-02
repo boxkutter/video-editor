@@ -66,6 +66,12 @@ function Editor({ project, existingExport, exportActions, header, className, han
   const [saving, setSaving] = useState<Saving>("saved");
   const [message, setMessage] = useState<string | null>(null);
   const [exported, setExported] = useState<MediaRef | null>(existingExport ?? null);
+  // A host that finishes the video on its server passes the processed file later: show that one.
+  const existingRef = existingExport?.ref;
+  useEffect(() => {
+    if (existingExport) setExported(existingExport);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- follow the file, not the object identity
+  }, [existingRef]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const engine = useRef<VideoEngine | null>(null);
   const liveBefore = useRef<Timeline | null>(null);
@@ -380,7 +386,7 @@ function ExportPanel({ engine, duration, fps, title, current, exported, onExport
       {exported ? (
         <div className="ve-finished">
           <h3 className={cx("heading", "ve-heading")}>{t("yourVideo")}</h3>
-          <video controls preload="metadata" src={adapter.mediaUrl({ ref: exported.ref, kind: "video", name: exported.name ?? "" })} className="ve-finished__player" />
+          <video controls preload="metadata" src={exported.url ?? adapter.mediaUrl({ ref: exported.ref, kind: "video", name: exported.name ?? "" })} className="ve-finished__player" />
           {exportActions ? exportActions(exported, current()) : null}
         </div>
       ) : null}

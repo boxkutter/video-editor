@@ -37,4 +37,10 @@ describe("the editor renders what is configured", () => {
     expect(out).not.toContain("Upload video");
     expect(out).not.toContain("Record from this computer");
   });
+
+  it("plays an export from its own url when the host gives one, else through mediaUrl", () => {
+    const withExport = { adapter: { ...adapter, uploadExport: async () => ({ ref: "v", kind: "video" as const }) } };
+    expect(html({ ...withExport, existingExport: { ref: "v1", kind: "video", url: "blob:local-copy" } })).toContain('src="blob:local-copy"');
+    expect(html({ ...withExport, adapter: { ...withExport.adapter, mediaUrl: () => "/m/v1" }, existingExport: { ref: "v1", kind: "video" } })).toContain('src="/m/v1"');
+  });
 });
