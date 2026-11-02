@@ -51,6 +51,11 @@
   .ve-main[data-media="false"][data-inspector="false"] { grid-template-columns: 1fr; }
 }
 .ve-field { display: grid; gap: 0.25rem; margin-bottom: 0.75rem; }
+/* Sizing is the editor's own, whatever the host's: borders and padding inside the width, and no
+   control wider than its panel (a file input is as wide as its button and file name otherwise). */
+.ve-root, .ve-root *, .ve-root *::before, .ve-root *::after { box-sizing: border-box; }
+.ve-root input, .ve-root select, .ve-root textarea { max-width: 100%; min-width: 0; }
+.ve-root input[type="file"] { width: 100%; }
 .ve-input, .ve-root select, .ve-root textarea, .ve-root input[type="number"], .ve-root input[type="text"] { font: inherit; color: inherit; background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); padding: 0.4rem 0.5rem; }
 .ve-root input[type="range"] { width: 100%; }
 .ve-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
