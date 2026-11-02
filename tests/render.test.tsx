@@ -35,6 +35,11 @@ describe("the editor renders what is configured", () => {
     expect(out).toMatch(/aria-label="Editing tools"[\s\S]*role="radiogroup" aria-label="When adding"/);
   });
 
+  it("hides the timeline's transport and screen when asked (the review player takes their place)", async () => {
+    const css = (await import("node:fs")).readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+    expect(css).toContain(".ve-transport[hidden]");
+  });
+
   it("puts the host's content at the start of the top bar", () => {
     expect(html({ barStart: <a href="/videos">All videos</a> })).toMatch(/ve-topbar__start"><a href="\/videos">All videos/);
   });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3
+- Reviewing a library file has its own transport, like the timeline's: to start, back and forward a
+  second (Shift: five), play and pause, a position slider with the time, and sound on or off; Space
+  plays and pauses, the arrow keys step, Escape goes back. Clicking the picture plays or pauses.
+- Fixed: the timeline's transport stayed on show (doing nothing) while a file was reviewed.
+
 ## 0.5.2
 - Insert or replace now sits in the timeline toolbar, beside Snap (it was above the media tabs). The
   timeline's settings (insert or replace, Snap, Zoom, help) keep together at the right and wrap as one.

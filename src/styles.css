@@ -220,12 +220,14 @@
 .ve-guide { position: absolute; pointer-events: none; background: var(--ve-focus); opacity: 0.85; z-index: 2; }
 .ve-guide--v { top: 0; bottom: 0; left: 50%; width: 1px; }
 .ve-guide--h { left: 0; right: 0; top: 50%; height: 1px; }
-.ve-stage__screen[data-reviewing] .ve-stage__canvas { display: none; }
+.ve-stage__screen[hidden], .ve-transport[hidden] { display: none !important; }
+.ve-review__screen { display: grid; place-items: center; }
+.ve-review__screen .ve-review__media { cursor: pointer; }
+.ve-review__sound { display: grid; place-items: center; width: 100%; height: 100%; min-height: 10rem; font-size: 3rem; color: #fff; background: radial-gradient(circle, var(--ve-audio), #000 75%); cursor: pointer; }
+.ve-review__sound audio { display: none; }
 .ve-review { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
 .ve-review__name { flex: 1 1 10rem; margin: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ve-review__media { display: block; max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; background: #000; }
-.ve-review__audio { width: min(28rem, 90%); }
-.ve-root[data-layout="workspace"] .ve-stage__screen[data-reviewing] { display: grid; place-items: center; }
 
 /* --- Library tiles with their own Add button; insert or replace. ----------------------------------- */
 .ve-tile-wrap { display: grid; gap: 0.2rem; }

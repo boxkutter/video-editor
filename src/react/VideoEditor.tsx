@@ -41,11 +41,77 @@ export interface VideoEditorProps {
 
 type Place = { at: number; trackId?: string; clipId?: string | null };
 
-/** A file on its own in the preview, with the browser's own controls. */
-function Review({ media, url }: { media: MediaRef; url: string }) {
-  if (media.kind === "image") return <img className="ve-review__media" src={url} alt={media.name ?? ""} />;
-  if (media.kind === "audio") return <audio className="ve-review__audio" src={url} controls autoPlay />;
-  return <video className="ve-review__media" src={url} controls autoPlay playsInline />;
+/**
+ * A file on its own in the preview, to look at or listen to before using it, with the same
+ * transport as the timeline: to start, back and forward a second (Shift: five), play and pause, a
+ * position slider and the time, and sound on or off. Space plays and pauses, the arrow keys step,
+ * Escape goes back to the timeline.
+ */
+function ReviewPlayer({ media, url, onClose }: { media: MediaRef; url: string; onClose: () => void }) {
+  const { t } = useEditor();
+  const cx = useCx();
+  const uid = useId();
+  const el = useRef<HTMLVideoElement & HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [now, setNow] = useState(0);
+  const [length, setLength] = useState((media.durationMs ?? 0) / 1000);
+  const [muted, setMuted] = useState(false);
+  const btn = cx("button", "ve-button");
+  const btn2 = cx("buttonSecondary", "ve-button ve-button--secondary");
+  const input = cx("input", "ve-input");
+  const timed = media.kind !== "image";
+
+  const toggle = () => { const m = el.current; if (!m) return; if (m.paused) void m.play().catch(() => {}); else m.pause(); };
+  const jump = (to: number) => { const m = el.current; if (m) m.currentTime = Math.max(0, Math.min(to, Number.isFinite(m.duration) ? m.duration : to)); };
+
+  useEffect(() => {
+    if (!timed) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable]") && event.key !== "Escape") return;
+      if (event.key === " " && target?.tagName !== "BUTTON") { event.preventDefault(); toggle(); }
+      else if (event.key === "ArrowLeft" && !target?.closest(".ve-timeline")) { event.preventDefault(); jump((el.current?.currentTime ?? 0) - (event.shiftKey ? 5 : 1)); }
+      else if (event.key === "ArrowRight" && !target?.closest(".ve-timeline")) { event.preventDefault(); jump((el.current?.currentTime ?? 0) + (event.shiftKey ? 5 : 1)); }
+      else if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timed]);
+
+  const events = {
+    onPlay: () => setPlaying(true),
+    onPause: () => setPlaying(false),
+    onEnded: () => setPlaying(false),
+    onTimeUpdate: () => setNow(el.current?.currentTime ?? 0),
+    onLoadedMetadata: () => { const d = el.current?.duration; if (d && Number.isFinite(d)) setLength(d); },
+    onDurationChange: () => { const d = el.current?.duration; if (d && Number.isFinite(d)) setLength(d); },
+  };
+  const ms = (sec: number) => Math.round(sec * 1000);
+  return (
+    <>
+      <div className="ve-stage__screen ve-review__screen">
+        {media.kind === "image" ? <img className="ve-review__media" src={url} alt={media.name ?? ""} />
+          : media.kind === "video" ? <video ref={el} className="ve-review__media" src={url} autoPlay playsInline muted={muted} onClick={toggle} {...events} />
+          : <div className="ve-review__sound" onClick={toggle}><span aria-hidden="true">♪</span><audio ref={el} src={url} autoPlay muted={muted} {...events} /></div>}
+      </div>
+      {timed ? (
+        <div className="ve-transport" role="group" aria-label={t("reviewPlayback")}>
+          <button type="button" className={`${btn2} ve-icon-button`} onClick={() => jump(0)} aria-label={t("toStart")} title={t("toStart")}><Icon d="M6 5v14M18 6l-9 6 9 6z" /></button>
+          <button type="button" className={`${btn2} ve-icon-button`} onClick={(e) => jump(now - (e.shiftKey ? 5 : 1))} aria-label={t("back1")} title={t("back1")}><Icon d="M11 6l-7 6 7 6zM20 6l-7 6 7 6z" /></button>
+          <button type="button" className={`${btn} ve-transport__play`} onClick={toggle} aria-pressed={playing}>{playing ? t("pause") : t("play")}</button>
+          <button type="button" className={`${btn2} ve-icon-button`} onClick={(e) => jump(now + (e.shiftKey ? 5 : 1))} aria-label={t("forward1")} title={t("forward1")}><Icon d="M13 6l7 6-7 6zM4 6l7 6-7 6z" /></button>
+          <label htmlFor={`${uid}-pos`} className="ve-visually-hidden">{t("position")}</label>
+          <input id={`${uid}-pos`} className={`${input} ve-transport__position`} type="range" min={0} max={Math.max(length, 0.1)} step={0.05} value={Math.min(now, length || now)}
+            aria-valuetext={formatTime(ms(now))} onChange={(e) => jump(Number(e.target.value))} />
+          <span className="ve-transport__time">{formatTime(ms(now))} / {formatTime(ms(length))}</span>
+          <button type="button" className={`${btn2} ve-icon-button`} onClick={() => setMuted((m) => !m)} aria-pressed={muted} aria-label={muted ? t("soundOn") : t("soundOff")} title={muted ? t("soundOn") : t("soundOff")}>
+            <Icon d={muted ? "M4 9h4l5-4v14l-5-4H4zM16 9l5 6M21 9l-5 6" : "M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"} />
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 export interface VideoEditorHandle {
@@ -91,6 +157,8 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
   addModeRef.current = addMode;
   /** A file shown in the preview for a look before it is used (the timeline is set aside meanwhile). */
   const [review, setReview] = useState<MediaRef | null>(null);
+  const reviewRef = useRef(review);
+  reviewRef.current = review;
   const [guides, setGuides] = useState<{ v: boolean; h: boolean } | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   // A host that finishes the video on its server passes the processed file later: show that one.
@@ -327,6 +395,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable]")) return;
+      if (event.key === " " && reviewRef.current) return; // the review player has Space
       if (event.key === " " && target?.tagName !== "BUTTON" && f.preview) {
         event.preventDefault();
         void togglePlay();
@@ -418,14 +487,16 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
         <section className={cx("panel", "ve-panel ve-stage")} aria-labelledby={`${uid}-preview`} hidden={!f.preview}>
           <h2 id={`${uid}-preview`} className="ve-visually-hidden">{t("preview")}</h2>
           {review ? (
-            <div className="ve-review" role="group" aria-label={t("reviewing", { name: review.name ?? review.ref })}>
-              <p className="ve-review__name">{t("reviewing", { name: review.name ?? review.ref })}</p>
-              <button type="button" className={btn} onClick={() => { void addMedia(review); setReview(null); }}>{t("addToTimeline")}</button>
-              <button type="button" className={btn2} onClick={() => setReview(null)}>{t("backToTimeline")}</button>
-            </div>
+            <>
+              <div className="ve-review" role="group" aria-label={t("reviewing", { name: review.name ?? review.ref })}>
+                <p className="ve-review__name">{t("reviewing", { name: review.name ?? review.ref })}</p>
+                <button type="button" className={btn} onClick={() => { void addMedia(review); setReview(null); }}>{t("addToTimeline")}</button>
+                <button type="button" className={btn2} onClick={() => setReview(null)}>{t("backToTimeline")}</button>
+              </div>
+              <ReviewPlayer key={review.ref} media={review} url={review.url ?? adapter.mediaUrl({ ref: review.ref, kind: review.kind, name: review.name ?? review.ref })} onClose={() => setReview(null)} />
+            </>
           ) : null}
-          <div className="ve-stage__screen" data-reviewing={review ? true : undefined} onKeyDown={(e) => { if (review && e.key === "Escape") setReview(null); }}>
-            {review ? <Review media={review} url={review.url ?? adapter.mediaUrl({ ref: review.ref, kind: review.kind, name: review.name ?? review.ref })} /> : null}
+          <div className="ve-stage__screen" hidden={!!review}>
             <canvas ref={canvas} className="ve-stage__canvas" width={size.width} height={size.height} role="img" aria-label={t("previewAt", { time: formatTime(time) })}
               onPointerDown={stageDown} onPointerMove={stageMove} onPointerUp={stageUp} onPointerCancel={stageUp} />
             {guides?.v ? <span className="ve-guide ve-guide--v" aria-hidden="true" /> : null}
