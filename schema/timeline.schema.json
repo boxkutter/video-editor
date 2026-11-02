@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/boxkutter/video-editor/schema/timeline.schema.json",
+  "title": "Video editor timeline",
+  "description": "The project data the editor produces and consumes. Native (non-web) editors and server-side renderers can read and write the same data.",
+  "type": "object",
+  "required": ["assets", "tracks"],
+  "properties": {
+    "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" } },
+    "tracks": { "type": "array", "description": "Listed bottom to top: later tracks are drawn over earlier ones.", "items": { "$ref": "#/$defs/track" } }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "required": ["id", "kind", "ref"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$" },
+        "kind": { "enum": ["video", "audio", "image"] },
+        "ref": { "type": "string", "description": "The host's identifier for the media; resolved to a URL by the host." },
+        "name": { "type": "string" },
+        "duration_ms": { "type": "integer", "minimum": 0 },
+        "width": { "type": "integer", "minimum": 0 },
+        "height": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "track": {
+      "type": "object",
+      "required": ["id", "kind", "clips"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,40}$" },
+        "kind": { "enum": ["video", "audio", "text"] },
+        "name": { "type": "string" },
+        "muted": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "clips": { "type": "array", "description": "Clips on one track never overlap.", "items": { "$ref": "#/$defs/clip" } }
+      }
+    },
+    "clip": {
+      "type": "object",
+      "required": ["id", "start_ms", "duration_ms"],
+      "properties": {
+        "id": { "type": "string" },
+        "start_ms": { "type": "integer", "minimum": 0 },
+        "duration_ms": { "type": "integer", "minimum": 100 },
+        "asset_id": { "type": "string", "description": "Absent on text clips." },
+        "in_ms": { "type": "integer", "minimum": 0, "description": "Where in the source the clip begins." },
+        "speed": { "type": "number", "minimum": 0.25, "maximum": 4 },
+        "volume": { "type": "number", "minimum": 0, "maximum": 2 },
+        "fade_in_ms": { "type": "integer", "minimum": 0 },
+        "fade_out_ms": { "type": "integer", "minimum": 0 },
+        "x": { "type": "number", "minimum": -1, "maximum": 1, "description": "Horizontal offset, fraction of half the picture width." },
+        "y": { "type": "number", "minimum": -1, "maximum": 1 },
+        "scale": { "type": "number", "minimum": 0.05, "maximum": 4 },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "crop": { "type": "object", "required": ["x", "y", "w", "h"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "w": { "type": "number" }, "h": { "type": "number" } }, "description": "Fractions of the source picture." },
+        "effects": { "type": "array", "items": { "type": "object", "required": ["type", "amount"], "properties": { "type": { "enum": ["brightness", "contrast", "saturate", "grayscale", "sepia", "invert", "blur", "hue"] }, "amount": { "type": "number" } } } },
+        "text": { "type": "object", "required": ["content"], "properties": { "content": { "type": "string", "maxLength": 500 }, "font_size": { "type": "number" }, "align": { "enum": ["left", "center", "right"] }, "weight": { "enum": ["normal", "bold"] }, "italic": { "type": "boolean" }, "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }, "background": { "type": ["string", "null"] } } }
+      }
+    }
+  }
+}

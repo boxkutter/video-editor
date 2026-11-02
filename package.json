@@ -1,0 +1,72 @@
+{
+  "name": "@boxkutter/video-editor",
+  "version": "0.1.0",
+  "description": "An embeddable, configurable browser video editor: record or upload, trim, crop, titles, effects and a timeline. Framework-free core, React UI and a web component.",
+  "license": "UNLICENSED",
+  "private": false,
+  "type": "module",
+  "sideEffects": [
+    "*.css",
+    "./dist/element.js"
+  ],
+  "files": [
+    "dist",
+    "schema",
+    "README.md"
+  ],
+  "main": "./dist/core.cjs",
+  "module": "./dist/core.js",
+  "types": "./dist/core.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js",
+      "require": "./dist/core.cjs"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    },
+    "./element": {
+      "types": "./dist/element.d.ts",
+      "import": "./dist/element.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./schema/timeline.schema.json": "./schema/timeline.schema.json"
+  },
+  "scripts": {
+    "build": "tsup && cp src/styles.css dist/styles.css",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "19.1.17",
+    "@types/react-dom": "19.1.11",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "tsup": "8.5.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.7"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/boxkutter/video-editor.git"
+  }
+}
