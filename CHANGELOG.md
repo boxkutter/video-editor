@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+- Insert or replace now sits in the timeline toolbar, beside Snap (it was above the media tabs). The
+  timeline's settings (insert or replace, Snap, Zoom, help) keep together at the right and wrap as one.
+
 ## 0.5.1
 - Zooming the timeline keeps the playhead in the middle of the visible part, instead of drifting to the start.
 

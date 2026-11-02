@@ -111,10 +111,13 @@
 .ve-transport__time { flex: none; }
 .ve-transport__position { flex: 1 1 4rem; min-width: 3rem; }
 .ve-transport__time { font-size: 0.85rem; white-space: nowrap; }
-.ve-zoom { margin-left: auto; min-width: 7rem; margin-bottom: 0; display: flex; align-items: center; gap: 0.4rem; }
+.ve-zoom { min-width: 7rem; margin-bottom: 0; display: flex; align-items: center; gap: 0.4rem; }
 .ve-zoom label { font-size: 0.85rem; }
 .ve-tl__tools { margin: 0 0 0.5rem; gap: 0.35rem; }
 .ve-tl__heading { margin: 0 0.5rem 0 0; }
+/* Insert or replace, Snap, Zoom and help keep together, at the right; on a narrower screen they wrap as one. */
+.ve-tl__settings { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.35rem 0.6rem; margin-left: auto; }
+.ve-tl__settings .ve-zoom input { width: 6.5rem; }
 .ve-tl__tools .ve-button { min-height: 1.9rem; padding: 0.2rem 0.55rem; font-size: 0.8rem; }
 .ve-tl__help { position: relative; font-size: 0.85rem; }
 .ve-tl__help summary { cursor: pointer; color: var(--ve-muted); }
@@ -228,9 +231,9 @@
 .ve-tile-wrap { display: grid; gap: 0.2rem; }
 .ve-tile__add { font: inherit; font-size: 0.72rem; padding: 0.15rem 0.3rem; border-radius: var(--ve-radius); border: 1px solid var(--ve-border); background: var(--ve-surface); color: var(--ve-text); cursor: pointer; }
 .ve-tile__add:hover { border-color: var(--ve-accent); color: var(--ve-accent); }
-.ve-addmode { display: flex; align-items: center; gap: 0.25rem; margin: 0 0 0.6rem; font-size: 0.8rem; }
-.ve-addmode__label { color: var(--ve-muted); margin-right: 0.25rem; }
-.ve-addmode__option { font: inherit; padding: 0.2rem 0.6rem; border: 1px solid var(--ve-border); background: var(--ve-bg); color: var(--ve-text); cursor: pointer; }
+.ve-addmode { display: inline-flex; align-items: center; gap: 0; margin: 0; font-size: 0.8rem; }
+.ve-addmode__label { color: var(--ve-muted); margin-right: 0.35rem; }
+.ve-addmode__option { font: inherit; min-height: 1.9rem; padding: 0.2rem 0.55rem; border: 1px solid var(--ve-border); background: var(--ve-bg); color: var(--ve-text); cursor: pointer; }
 .ve-addmode__option:first-of-type { border-radius: var(--ve-radius) 0 0 var(--ve-radius); }
 .ve-addmode__option:last-of-type { border-radius: 0 var(--ve-radius) var(--ve-radius) 0; margin-left: -1px; }
 .ve-addmode__option[aria-checked="true"] { background: var(--ve-accent); border-color: var(--ve-accent); color: var(--ve-accent-text); }

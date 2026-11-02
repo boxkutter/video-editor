@@ -31,6 +31,8 @@ describe("the editor renders what is configured", () => {
     expect(out).toContain("Big and bold");
     expect(out).toMatch(/aria-pressed="true"[^>]*>Snap/);
     expect(out).toContain('role="slider"');
+    // insert or replace sits with the timeline's tools
+    expect(out).toMatch(/aria-label="Editing tools"[\s\S]*role="radiogroup" aria-label="When adding"/);
   });
 
   it("puts the host's content at the start of the top bar", () => {

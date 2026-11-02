@@ -46,7 +46,7 @@ export const DEFAULT_LABELS = {
   libraryLoading: "Loading the library…",
   libraryEmpty: "Nothing in the library yet.",
   libraryFailed: "The library could not be loaded.",
-  libraryHint: "Choose a file to look at it in the preview. Drag it onto the timeline, or use Add to put it at the playhead.",
+  libraryHint: "Choose a file to look at it in the preview. Drag it onto the timeline, or use Add to put it at the playhead (inserted or replacing, as set by the timeline).",
   whenAdding: "When adding",
   modeInsert: "Insert",
   modeReplace: "Replace",

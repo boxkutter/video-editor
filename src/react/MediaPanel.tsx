@@ -4,7 +4,6 @@ import { Recorder, captureProblemKey, captureSupported, openCapture, probeMedia,
 import { effectsOffered, recordModes, uploadAccept, uploadKinds } from "../core/config";
 import { LOOKS, TRANSITIONS, type LookId, type TransitionId } from "../core/styles";
 import { previewCss } from "../core/text";
-import type { AddMode } from "../core/edits";
 import { classifyFile, filterString, formatTime, newId, type Asset, type AssetKind, type Effect, type Timeline, type TrackKind } from "../core/timeline";
 import { useCx, useEditor } from "./context";
 import { setDrag } from "./drag";
@@ -25,9 +24,6 @@ interface Props {
   onStyle: (style: { look: LookId } | { transition: TransitionId }, clipId: string) => void;
   /** Add a title in a text style at the playhead. */
   onAddText: (presetId: string) => void;
-  /** How media is added: insert (open a gap) or replace (the clip there). */
-  addMode: AddMode;
-  onAddMode: (mode: AddMode) => void;
   /** Show a file in the preview, to look at or listen to before using it. */
   onReview: (media: MediaRef) => void;
 }
@@ -44,7 +40,7 @@ function megabytes(bytes: number): string {
  * The project's media, on tabs: what is in the project, the host's library (shown in place, so its
  * files can be dragged onto the timeline), upload, and record. Which tabs appear is configuration.
  */
-export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onRemoveAsset, usedAssets, onError, libraryKey, selection, onStyle, onAddText, addMode, onAddMode, onReview }: Props) {
+export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onRemoveAsset, usedAssets, onError, libraryKey, selection, onStyle, onAddText, onReview }: Props) {
   const { config, adapter, t } = useEditor();
   const cx = useCx();
   const uid = useId();
@@ -134,17 +130,6 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
             {busy} {Math.round(progress * 100)}%
           </label>
           <progress id={`${uid}-progress`} max={100} value={Math.round(progress * 100)} />
-        </div>
-      ) : null}
-
-      {tab === "project" || tab === "library" ? (
-        <div className="ve-addmode" role="radiogroup" aria-label={t("whenAdding")} title={t("addModeHelp")}>
-          <span className="ve-addmode__label" aria-hidden="true">{t("whenAdding")}</span>
-          {(["insert", "replace"] as const).map((m) => (
-            <button key={m} type="button" role="radio" aria-checked={addMode === m} className="ve-addmode__option" onClick={() => onAddMode(m)}>
-              {t(m === "insert" ? "modeInsert" : "modeReplace")}
-            </button>
-          ))}
         </div>
       ) : null}
 

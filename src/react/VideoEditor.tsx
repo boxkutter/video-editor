@@ -413,7 +413,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
       <div className="ve-work" data-media={f.mediaPanel} data-inspector={f.inspector}>
         {f.mediaPanel ? <MediaPanel timeline={timeline} onAsset={placeAsset} onAddMedia={(m) => void addMedia(m)} libraryKey={libraryKey}
           selection={selection ? { clipId: selection.clip.id, kind: selection.track.kind } : null} onStyle={(style, id) => applyStyle(style, id)} onAddText={(id) => addText(id, time)} onAddToTimeline={(id) => { const p = placeClip(timeline, id, time, addMode); if (p) edit(p.timeline, p.clipId); }}
-          addMode={addMode} onAddMode={setAddMode} onReview={(m) => { if (playing) void togglePlay(); setReview(m); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
+          onReview={(m) => { if (playing) void togglePlay(); setReview(m); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
 
         <section className={cx("panel", "ve-panel ve-stage")} aria-labelledby={`${uid}-preview`} hidden={!f.preview}>
           <h2 id={`${uid}-preview`} className="ve-visually-hidden">{t("preview")}</h2>
@@ -462,19 +462,30 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
               <button type="button" className={btn2} title={t("addVideoTrackHelp")} onClick={() => edit(addTrack(timeline, "video"))}>{t("addVideoTrack")}</button>
               <button type="button" className={btn2} title={t("addAudioTrackHelp")} onClick={() => edit(addTrack(timeline, "audio"))}>{t("addAudioTrack")}</button>
             </> : null}
-            <button type="button" className={`${btn2} ve-snap`} aria-pressed={snapping} title={t("snapHelp")} onClick={() => setSnapping((v) => !v)}>
-              {t("snap")}: {snapping ? t("on") : t("off")}
-            </button>
-            {f.zoom ? (
-              <div className={`${field} ve-zoom`}>
-                <label htmlFor={`${uid}-zoom`}>{t("zoom")}</label>
-                <input id={`${uid}-zoom`} className={input} type="range" min={10} max={300} step={5} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+            <div className="ve-tl__settings">
+              {/* How media goes on (Add and drops): insert opens a gap, replace swaps the clip there. */}
+              <div className="ve-addmode" role="radiogroup" aria-label={t("whenAdding")} title={t("addModeHelp")}>
+                <span className="ve-addmode__label" aria-hidden="true">{t("whenAdding")}</span>
+                {(["insert", "replace"] as const).map((m) => (
+                  <button key={m} type="button" role="radio" aria-checked={addMode === m} className="ve-addmode__option" onClick={() => setAddMode(m)}>
+                    {t(m === "insert" ? "modeInsert" : "modeReplace")}
+                  </button>
+                ))}
               </div>
-            ) : null}
-            <details className="ve-tl__help">
-              <summary>{t("howToEdit")}</summary>
-              <p className="ve-hint">{t("timelineHelp")}</p>
-            </details>
+              <button type="button" className={`${btn2} ve-snap`} aria-pressed={snapping} title={t("snapHelp")} onClick={() => setSnapping((v) => !v)}>
+                {t("snap")}: {snapping ? t("on") : t("off")}
+              </button>
+              {f.zoom ? (
+                <div className={`${field} ve-zoom`}>
+                  <label htmlFor={`${uid}-zoom`}>{t("zoom")}</label>
+                  <input id={`${uid}-zoom`} className={input} type="range" min={10} max={300} step={5} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+                </div>
+              ) : null}
+              <details className="ve-tl__help">
+                <summary>{t("howToEdit")}</summary>
+                <p className="ve-hint">{t("timelineHelp")}</p>
+              </details>
+            </div>
           </div>
           <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} onDrop={dropped} snapping={snapping} addMode={addMode} />
         </section>
