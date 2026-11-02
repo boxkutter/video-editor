@@ -5,6 +5,7 @@
  */
 
 import type { AssetKind, EffectType } from "./timeline";
+import { DEFAULT_COLOURS, DEFAULT_TEXT_PRESETS, SYSTEM_FONTS, type FontChoice, type NamedColour, type TextPreset } from "./text";
 import { EFFECTS } from "./timeline";
 import type { CaptureMode } from "./capture";
 
@@ -87,6 +88,15 @@ export interface EditorConfig {
   layout: "workspace" | "stacked";
   /** Set when the host serves media from another origin: needed to read it onto the canvas. */
   crossOrigin?: "anonymous" | "use-credentials";
+  /** Titles: the fonts offered (the host loads them), the ready-made styles, and the colour swatches. */
+  text: TextOptions;
+}
+
+export interface TextOptions {
+  fonts: FontChoice[];
+  presets: TextPreset[];
+  /** Swatches offered for text, outlines, shadows and boxes (a host might put its brand colours first). */
+  colours: NamedColour[];
 }
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends (infer U)[] ? U[] : T[K] extends object ? DeepPartial<T[K]> : T[K] };
@@ -136,6 +146,7 @@ export const DEFAULT_CONFIG: EditorConfig = {
   autosave: 1500,
   zoom: 60,
   layout: "workspace",
+  text: { fonts: SYSTEM_FONTS, presets: DEFAULT_TEXT_PRESETS, colours: DEFAULT_COLOURS },
 };
 
 /** The configuration with every default filled in. Unknown feature names are ignored. */
@@ -156,6 +167,11 @@ export function resolveConfig(options: EditorOptions = {}): EditorConfig {
     zoom: options.zoom ?? DEFAULT_CONFIG.zoom,
     layout: options.layout === "stacked" ? "stacked" : "workspace",
     crossOrigin: options.crossOrigin,
+    text: {
+      fonts: (options.text?.fonts as FontChoice[] | undefined)?.length ? (options.text!.fonts as FontChoice[]) : DEFAULT_CONFIG.text.fonts,
+      presets: (options.text?.presets as TextPreset[] | undefined) ?? DEFAULT_CONFIG.text.presets,
+      colours: (options.text?.colours as NamedColour[] | undefined)?.length ? (options.text!.colours as NamedColour[]) : DEFAULT_CONFIG.text.colours,
+    },
   };
 }
 

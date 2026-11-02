@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.0
+- **Titles**: fonts (`options.text.fonts`, the host loads them; the system fonts by default), colour
+  swatches (`options.text.colours`, plus any colour), capitals, letter and line spacing, an outline,
+  a soft or hard shadow or a glow, a box with its own opacity and rounded corners.
+- **Title animations**: comes in and goes out (fade, rise, drop, slide, pop, zoom, bounce, blur,
+  wipe, typewriter, word by word), each with its own length, the same in the preview and the export.
+- **Text tab**: ready-made styles (`options.text.presets`, `TextPreset`), grouped professional,
+  social and fun, drawn in their own look. Drag one onto the timeline to add a title there or onto a
+  title to restyle it; choose one to add it at the playhead.
+- **Move things on the preview**: drag a title or picture; with Snap on it settles on the centre
+  lines (guides show). Quick places (top, middle, lower third, bottom, left, centre, right).
+- **Playhead**: drag it from the ruler or the line (one seek per frame); a slider for the keyboard
+  (arrows, Shift, Page Up/Down to the previous or next edge, Home, End).
+- **Snap on/off** (timeline toolbar): on, the playhead, moved clips and drops settle exactly on the
+  nearest clip start, end or join; off, they stay exactly where they are let go.
+- **Insert or replace** (`core/edits.ts`): insert opens a gap (splitting a clip it lands in) and moves
+  what follows along; replace swaps the clip there for the new media, keeping its place, length and
+  settings. Applies to drops and to Add.
+- **Library tiles**: choosing one shows it in the preview to look at or listen to; its Add button puts
+  it on the timeline at the playhead; dragging places it.
+- Timeline schema: new optional `text` fields (`font`, `uppercase`, `letter_spacing`, `line_height`,
+  `outline`, `shadow`, `shadow_color`, `box_opacity`, `box_radius`, `animation`). Older timelines
+  draw exactly as before.
+
 ## 0.4.0
 - **Media on tabs**: Project, Library, Upload, Record and Effects. Recording is a tab of its own (it
   carries on while you look at another tab). Upload also takes files dropped onto it.

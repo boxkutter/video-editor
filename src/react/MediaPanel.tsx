@@ -3,6 +3,8 @@ import type { LibraryItem, MediaRef } from "../core/adapter";
 import { Recorder, captureProblemKey, captureSupported, openCapture, probeMedia, recordingName, type Capture, type CaptureMode } from "../core/capture";
 import { effectsOffered, recordModes, uploadAccept, uploadKinds } from "../core/config";
 import { LOOKS, TRANSITIONS, type LookId, type TransitionId } from "../core/styles";
+import { previewCss } from "../core/text";
+import type { AddMode } from "../core/edits";
 import { classifyFile, filterString, formatTime, newId, type Asset, type AssetKind, type Effect, type Timeline, type TrackKind } from "../core/timeline";
 import { useCx, useEditor } from "./context";
 import { setDrag } from "./drag";
@@ -21,10 +23,17 @@ interface Props {
   /** The selected clip, which a look or transition chosen (not dragged) applies to. */
   selection: { clipId: string; kind: TrackKind } | null;
   onStyle: (style: { look: LookId } | { transition: TransitionId }, clipId: string) => void;
+  /** Add a title in a text style at the playhead. */
+  onAddText: (presetId: string) => void;
+  /** How media is added: insert (open a gap) or replace (the clip there). */
+  addMode: AddMode;
+  onAddMode: (mode: AddMode) => void;
+  /** Show a file in the preview, to look at or listen to before using it. */
+  onReview: (media: MediaRef) => void;
 }
 
 type Phase = "idle" | "preparing" | "ready" | "recording" | "paused" | "saving";
-type Tab = "project" | "library" | "upload" | "record" | "effects";
+type Tab = "project" | "library" | "upload" | "record" | "text" | "effects";
 const KIND_KEY = { video: "kindVideo", audio: "kindAudio", image: "kindImage" } as const;
 
 function megabytes(bytes: number): string {
@@ -35,7 +44,7 @@ function megabytes(bytes: number): string {
  * The project's media, on tabs: what is in the project, the host's library (shown in place, so its
  * files can be dragged onto the timeline), upload, and record. Which tabs appear is configuration.
  */
-export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onRemoveAsset, usedAssets, onError, libraryKey, selection, onStyle }: Props) {
+export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onRemoveAsset, usedAssets, onError, libraryKey, selection, onStyle, onAddText, addMode, onAddMode, onReview }: Props) {
   const { config, adapter, t } = useEditor();
   const cx = useCx();
   const uid = useId();
@@ -48,11 +57,11 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
   const hasLibrary = config.features.library && !!(adapter.listMedia || adapter.pickMedia);
   const looks = effectsOffered(config).length > 0;
   const fades = config.features.fades;
-  const tabs: Tab[] = ["project", ...(hasLibrary ? (["library"] as const) : []), ...(canStore && kinds.length > 0 ? (["upload"] as const) : []), ...(modes.length > 0 ? (["record"] as const) : []), ...(looks || fades ? (["effects"] as const) : [])];
+  const tabs: Tab[] = ["project", ...(hasLibrary ? (["library"] as const) : []), ...(canStore && kinds.length > 0 ? (["upload"] as const) : []), ...(modes.length > 0 ? (["record"] as const) : []), ...(config.features.titles && config.text.presets.length > 0 ? (["text"] as const) : []), ...(looks || fades ? (["effects"] as const) : [])];
   // An empty project opens on the library (or upload): there is nothing to show under Project yet.
   const [tab, setTab] = useState<Tab>(() => (timeline.assets.length === 0 ? (tabs[1] ?? "project") : "project"));
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
-  const tabName: Record<Tab, string> = { project: t("tabProject"), library: t("tabLibrary"), upload: t("tabUpload"), record: t("tabRecord"), effects: t("tabEffects") };
+  const tabName: Record<Tab, string> = { project: t("tabProject"), library: t("tabLibrary"), upload: t("tabUpload"), record: t("tabRecord"), text: t("tabText"), effects: t("tabEffects") };
 
   async function add(file: File, kind: AssetKind, known?: { durationMs: number }, addToTimeline = false) {
     if (!adapter.uploadMedia) return;
@@ -128,6 +137,17 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
         </div>
       ) : null}
 
+      {tab === "project" || tab === "library" ? (
+        <div className="ve-addmode" role="radiogroup" aria-label={t("whenAdding")} title={t("addModeHelp")}>
+          <span className="ve-addmode__label" aria-hidden="true">{t("whenAdding")}</span>
+          {(["insert", "replace"] as const).map((m) => (
+            <button key={m} type="button" role="radio" aria-checked={addMode === m} className="ve-addmode__option" onClick={() => onAddMode(m)}>
+              {t(m === "insert" ? "modeInsert" : "modeReplace")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div {...panel("project")}>
         {timeline.assets.length === 0 ? (
           <p className="ve-muted">{t("nothingYet")}</p>
@@ -135,7 +155,8 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
           <ul className="ve-assets">
             {timeline.assets.map((asset) => (
               <li key={asset.id} draggable onDragStart={(e) => setDrag(e, { asset: asset.id }, asset.name)} className="ve-assets__item">
-                <span className="ve-assets__name">{asset.name}</span>{" "}
+                <button type="button" className="ve-assets__name ve-linkish" onClick={() => onReview({ ref: asset.ref, kind: asset.kind, name: asset.name, durationMs: asset.duration_ms })}
+                  title={t("reviewThis")}>{asset.name}</button>{" "}
                 <span className="ve-muted">
                   {t(KIND_KEY[asset.kind])}
                   {asset.duration_ms ? `, ${formatTime(asset.duration_ms)}` : ""}
@@ -159,7 +180,7 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
       {hasLibrary ? (
         <div {...panel("library")}>
           {adapter.listMedia ? (
-            <Library kinds={kinds} shown={tab === "library"} libraryKey={libraryKey} inProject={new Set(timeline.assets.map((a) => `${a.kind}:${a.ref}`))} onAdd={onAddMedia} />
+            <Library kinds={kinds} shown={tab === "library"} libraryKey={libraryKey} inProject={new Set(timeline.assets.map((a) => `${a.kind}:${a.ref}`))} onAdd={onAddMedia} onReview={onReview} />
           ) : (
             <div className={cx("actions", "ve-actions")}>
               <button type="button" className={btn2} onClick={() => void fromLibrary()}>
@@ -185,6 +206,12 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
         </div>
       ) : null}
 
+      {tabs.includes("text") ? (
+        <div {...panel("text")}>
+          <TextStyles onAdd={onAddText} />
+        </div>
+      ) : null}
+
       {looks || fades ? (
         <div {...panel("effects")}>
           <Styles looks={looks} fades={fades} selection={selection} onStyle={onStyle} onError={onError} />
@@ -197,6 +224,35 @@ export function MediaPanel({ timeline, onAsset, onAddMedia, onAddToTimeline, onR
         </div>
       ) : null}
     </section>
+  );
+}
+
+/** The text styles, as tiles drawn in their own font and colours. */
+function TextStyles({ onAdd }: { onAdd: (presetId: string) => void }) {
+  const { config, t } = useEditor();
+  const familyOf = (id?: string) => (config.text.fonts.find((f) => f.id === id) ?? config.text.fonts[0])?.family ?? "";
+  const groups = (["professional", "social", "fun"] as const).map((g) => ({ g, items: config.text.presets.filter((p) => p.group === g) })).filter((x) => x.items.length);
+  return (
+    <>
+      <p className="ve-hint">{t("textHint")}</p>
+      {groups.map(({ g, items }) => (
+        <section key={g} className="ve-library__group" aria-label={t(`textGroup_${g}`)}>
+          <h3 className="ve-library__heading">{t(`textGroup_${g}`)}</h3>
+          <ul className="ve-library ve-library--text">
+            {items.map((p) => (
+              <li key={p.id}>
+                <button type="button" className="ve-tile ve-tile--text" draggable onDragStart={(e) => setDrag(e, { text: p.id }, p.label)} onClick={() => onAdd(p.id)}
+                  aria-label={t("addTextStyle", { name: p.label })} title={p.label}>
+                  <span className="ve-tile__thumb ve-tile__textthumb" aria-hidden="true">
+                    <span style={previewCss(p.style, familyOf(p.style.font))}>{p.label}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </>
   );
 }
 
@@ -249,7 +305,7 @@ function Styles({ looks, fades, selection, onStyle, onError }: { looks: boolean;
 }
 
 /** The host's library, listed in place: tiles you can drag onto the timeline or choose to add at the playhead. */
-function Library({ kinds, shown, libraryKey, inProject, onAdd }: { kinds: AssetKind[]; shown: boolean; libraryKey: unknown; inProject: ReadonlySet<string>; onAdd: (media: MediaRef) => void }) {
+function Library({ kinds, shown, libraryKey, inProject, onAdd, onReview }: { kinds: AssetKind[]; shown: boolean; libraryKey: unknown; inProject: ReadonlySet<string>; onAdd: (media: MediaRef) => void; onReview: (media: MediaRef) => void }) {
   const { adapter, t } = useEditor();
   const [items, setItems] = useState<LibraryItem[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -292,9 +348,9 @@ function Library({ kinds, shown, libraryKey, inProject, onAdd }: { kinds: AssetK
               const url = item.url ?? adapter.mediaUrl({ ref: item.ref, kind: item.kind, name });
               const media: MediaRef = { ref: item.ref, kind: item.kind, name, durationMs: item.durationMs, url: item.url };
               return (
-                <li key={`${item.kind}:${item.ref}`}>
-                  <button type="button" className="ve-tile" draggable onDragStart={(e) => setDrag(e, { media }, name)} onClick={() => onAdd(media)}
-                    aria-label={t("addItemToTimeline", { name })} title={name}>
+                <li key={`${item.kind}:${item.ref}`} className="ve-tile-wrap">
+                  <button type="button" className="ve-tile" draggable onDragStart={(e) => setDrag(e, { media }, name)} onClick={() => onReview(media)}
+                    aria-label={t("reviewItem", { name })} title={`${name}: ${t("reviewHint")}`}>
                     <span className="ve-tile__thumb" data-kind={item.kind}>
                       {item.thumbnailUrl || item.kind === "image" ? <img src={item.thumbnailUrl ?? url} alt="" loading="lazy" draggable={false} />
                         : item.kind === "video" ? <video src={`${url}#t=0.5`} muted preload="metadata" tabIndex={-1} />
@@ -303,6 +359,9 @@ function Library({ kinds, shown, libraryKey, inProject, onAdd }: { kinds: AssetK
                       {inProject.has(`${item.kind}:${item.ref}`) ? <span className="ve-tile__in" title={t("inProject")}>✓</span> : null}
                     </span>
                     <span className="ve-tile__name">{name}</span>
+                  </button>
+                  <button type="button" className="ve-tile__add" onClick={() => onAdd(media)} aria-label={t("addItemToTimeline", { name })} title={t("addItemToTimeline", { name })}>
+                    <span aria-hidden="true">+</span> {t("addShort")}
                   </button>
                 </li>
               );

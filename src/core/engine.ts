@@ -9,7 +9,8 @@
  * clip starts and released once it is well past.
  */
 
-import { activeClips, assetOf, clipEnd, fadeFactor, filterString, sourceTime, timelineEnd, type Asset, type Clip, type Timeline, type Track } from "./timeline";
+import { DEFAULT_FONT_FAMILY, revealLines, textFrame, type FontChoice } from "./text";
+import { activeClips, assetOf, clipEnd, fadeFactor, filterString, sourceTime, timelineEnd, type Asset, type Clip, type Timeline, type TextStyle, type Track } from "./timeline";
 
 export interface Canvasish {
   width: number;
@@ -55,6 +56,10 @@ export class VideoEngine {
   private token = 0;
   now = 0;
   timeline: Timeline = { assets: [], tracks: [] };
+  private fonts = new Map<string, FontChoice>();
+  private fontsAsked = new Set<string>();
+  /** Where each clip was last drawn (canvas pixels), for picking one on the preview. Drawing order. */
+  private drawn: { clipId: string; x: number; y: number; w: number; h: number }[] = [];
   onTime: (ms: number) => void = () => {};
   onEnded: () => void = () => {};
 
@@ -66,6 +71,50 @@ export class VideoEngine {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("A canvas is needed to show the video");
     this.ctx2d = ctx;
+  }
+
+  /** The fonts titles may name (`text.font`). */
+  setFonts(fonts: readonly FontChoice[]): void {
+    this.fonts = new Map(fonts.map((f) => [f.id, f]));
+    if (!this.playing) void this.renderAt(this.now);
+  }
+
+  private familyOf(text: TextStyle): string {
+    return this.fonts.get(text.font ?? "")?.family ?? DEFAULT_FONT_FAMILY;
+  }
+
+  private fontKey(text: TextStyle): string {
+    return `${text.italic ? "italic " : ""}${text.weight === "bold" ? "700" : "400"} 48px ${this.familyOf(text)}`;
+  }
+
+  /** Ask the browser for a title's font; draw again once it has arrived (a web font is fetched on first use). */
+  private askFont(text: TextStyle): void {
+    if (typeof document === "undefined" || !document.fonts) return;
+    const key = this.fontKey(text);
+    if (this.fontsAsked.has(key)) return;
+    this.fontsAsked.add(key);
+    void document.fonts.load(key).then(() => { if (!this.playing) this.drawFrame(this.now); }, () => {});
+  }
+
+  /** Every font the timeline's titles use, loaded (before an export, so no frame uses a stand-in). */
+  async fontsReady(): Promise<void> {
+    if (typeof document === "undefined" || !document.fonts) return;
+    const keys = new Set(this.timeline.tracks.flatMap((t) => t.clips.flatMap((c) => (c.text ? [this.fontKey(c.text)] : []))));
+    await Promise.race([Promise.all([...keys].map((k) => document.fonts.load(k).catch(() => []))), new Promise((r) => setTimeout(r, 5000))]);
+  }
+
+  /** The clip drawn on top at a point of the picture (canvas pixels), if any. */
+  clipAt(x: number, y: number): string | null {
+    for (let i = this.drawn.length - 1; i >= 0; i--) {
+      const d = this.drawn[i]!;
+      if (x >= d.x && x <= d.x + d.w && y >= d.y && y <= d.y + d.h) return d.clipId;
+    }
+    return null;
+  }
+
+  /** Where a clip was last drawn (canvas pixels). */
+  boundsOf(clipId: string): { x: number; y: number; w: number; h: number } | null {
+    return this.drawn.find((d) => d.clipId === clipId) ?? null;
   }
 
   get isPlaying(): boolean {
@@ -267,14 +316,18 @@ export class VideoEngine {
     c.filter = "none";
     c.fillStyle = "#000";
     c.fillRect(0, 0, W, H);
+    this.drawn = [];
     for (const track of this.timeline.tracks) {
       if (track.hidden || track.kind === "audio") continue;
       for (const clip of track.clips) {
         if (ms < clip.start_ms || ms >= clipEnd(clip)) continue;
         c.save();
         c.globalAlpha = Math.max(0, Math.min(1, clip.opacity * fadeFactor(clip, ms)));
-        if (track.kind === "text" && clip.text) drawText(c, clip, W, H);
-        else this.drawPicture(c, track, clip, W, H);
+        if (track.kind === "text" && clip.text) {
+          this.askFont(clip.text);
+          const box = drawText(c, clip, W, H, this.familyOf(clip.text), ms);
+          if (box) this.drawn.push({ clipId: clip.id, ...box });
+        } else this.drawPicture(c, track, clip, W, H);
         c.restore();
       }
     }
@@ -305,7 +358,10 @@ export class VideoEngine {
     const dw = cw * fit;
     const dh = ch * fit;
     c.filter = filterString(clip.effects);
-    c.drawImage(source, cx, cy, cw, ch, W / 2 + (clip.x * W) / 2 - dw / 2, H / 2 + (clip.y * H) / 2 - dh / 2, dw, dh);
+    const dx = W / 2 + (clip.x * W) / 2 - dw / 2;
+    const dy = H / 2 + (clip.y * H) / 2 - dh / 2;
+    c.drawImage(source, cx, cy, cw, ch, dx, dy, dw, dh);
+    this.drawn.push({ clipId: clip.id, x: dx, y: dy, w: dw, h: dh });
   }
 
   // --- export --------------------------------------------------------------------------------
@@ -327,6 +383,7 @@ export class VideoEngine {
     const stopped = new Promise<void>((resolve) => {
       recorder.onstop = () => resolve();
     });
+    await this.fontsReady();
     await this.seek(0);
     recorder.start(1000);
     const finished = new Promise<void>((resolve) => {
@@ -373,32 +430,84 @@ function seeked(el: HTMLVideoElement, seconds: number): Promise<void> {
   });
 }
 
-function drawText(c: CanvasRenderingContext2D, clip: Clip, W: number, H: number): void {
+/**
+ * Draw a title: its font, colour, outline, shadow or glow, the box behind it, and where it is in its
+ * entry or exit animation. Returns the box it covers (canvas pixels, before animation), for picking.
+ */
+function drawText(c: CanvasRenderingContext2D, clip: Clip, W: number, H: number, family: string, ms: number): { x: number; y: number; w: number; h: number } | null {
   const text = clip.text;
-  if (!text) return;
+  if (!text) return null;
+  const f = textFrame(clip, ms);
   const size = Math.max(8, text.font_size * H * clip.scale);
-  c.font = `${text.italic ? "italic " : ""}${text.weight === "bold" ? "bold " : ""}${size}px system-ui, "Segoe UI", Roboto, sans-serif`;
+  c.font = `${text.italic ? "italic " : ""}${text.weight === "bold" ? "bold " : ""}${size}px ${family}`;
+  const spacing = (text.letter_spacing ?? 0) * size;
+  if ("letterSpacing" in c) (c as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${spacing}px`;
   c.textBaseline = "middle";
-  const maxWidth = W * 0.9;
-  const lines = wrap(c, text.content, maxWidth);
-  const lineHeight = size * 1.25;
+  c.textAlign = "left";
+  const content = text.uppercase ? text.content.toLocaleUpperCase() : text.content;
+  const lines = wrap(c, content, W * 0.9);
+  const widths = lines.map((l) => c.measureText(l).width);
+  const lineHeight = size * (text.line_height ?? 1.25);
   const blockHeight = lines.length * lineHeight;
-  const widest = Math.max(...lines.map((l) => c.measureText(l).width));
-  const centreX = W / 2 + (clip.x * W) / 2;
+  const widest = Math.max(1, ...widths);
+  const pad = size * 0.4;
+  // A title stays inside the picture (a lower third placed for a wide picture still fits a tall one).
+  const margin = W * 0.03;
+  const halfBox = widest / 2 + pad;
+  let centreX = W / 2 + (clip.x * W) / 2;
+  if (halfBox * 2 <= W - margin * 2) centreX = Math.min(Math.max(centreX, margin + halfBox), W - margin - halfBox);
   const centreY = H / 2 + (clip.y * H) / 2;
-  const left = text.align === "left" ? centreX - widest / 2 : text.align === "right" ? centreX + widest / 2 : centreX;
-  c.textAlign = text.align;
+  const box = { x: centreX - widest / 2 - pad, y: centreY - blockHeight / 2 - pad / 2, w: widest + pad * 2, h: blockHeight + pad };
+  if (f.alpha <= 0 || f.wipe <= 0) return box;
+
+  c.save();
+  c.globalAlpha *= f.alpha;
+  c.translate(centreX + f.dx * size, centreY + f.dy * size);
+  if (f.scale !== 1) c.scale(f.scale, f.scale);
+  if (f.blur > 0) c.filter = `blur(${f.blur * size}px)`;
+  const left = -widest / 2 - pad;
+  const top = -blockHeight / 2 - pad / 2;
+  if (f.wipe < 1) {
+    c.beginPath();
+    c.rect(left - size, top - size, (box.w + size * 2) * f.wipe, box.h + size * 2);
+    c.clip();
+  }
   if (text.background) {
-    const pad = size * 0.4;
+    c.save();
+    c.globalAlpha *= text.box_opacity ?? 1;
     c.fillStyle = text.background;
-    c.fillRect(centreX - widest / 2 - pad, centreY - blockHeight / 2 - pad / 2, widest + pad * 2, blockHeight + pad);
+    const radius = Math.min(box.h / 2, (text.box_radius ?? 0) * pad * 2.5);
+    c.beginPath();
+    if (radius > 0 && typeof c.roundRect === "function") c.roundRect(left, top, box.w, box.h, radius);
+    else c.rect(left, top, box.w, box.h);
+    c.fill();
+    c.restore();
   }
+  const shadow = text.shadow ?? (text.background ? "none" : "soft");
+  const setShadow = () => {
+    if (shadow === "soft") { c.shadowColor = "rgba(0,0,0,0.6)"; c.shadowBlur = size * 0.15; }
+    else if (shadow === "hard") { c.shadowColor = text.shadow_color ?? "#000000"; c.shadowBlur = 0; c.shadowOffsetX = size * 0.06; c.shadowOffsetY = size * 0.06; }
+    else if (shadow === "glow") { c.shadowColor = text.shadow_color ?? text.color; c.shadowBlur = size * 0.45; }
+  };
+  const noShadow = () => { c.shadowColor = "transparent"; c.shadowBlur = 0; c.shadowOffsetX = 0; c.shadowOffsetY = 0; };
+  const shown = revealLines(lines, f.reveal, f.revealBy);
+  const xOf = (i: number) => (text.align === "left" ? -widest / 2 : text.align === "right" ? widest / 2 - widths[i]! : -widths[i]! / 2);
+  const yOf = (i: number) => -blockHeight / 2 + lineHeight * (i + 0.5);
+  const outline = text.outline && text.outline.width > 0 ? text.outline : null;
+  if (outline) {
+    c.lineJoin = "round";
+    c.strokeStyle = outline.color;
+    c.lineWidth = outline.width * size * 2;
+    setShadow();
+    shown.forEach((line, i) => line && c.strokeText(line, xOf(i), yOf(i)));
+    noShadow();
+  } else setShadow();
   c.fillStyle = text.color;
-  if (!text.background) {
-    c.shadowColor = "rgba(0,0,0,0.6)";
-    c.shadowBlur = size * 0.15;
-  }
-  lines.forEach((line, i) => c.fillText(line, left, centreY - blockHeight / 2 + lineHeight * (i + 0.5)));
+  shown.forEach((line, i) => line && c.fillText(line, xOf(i), yOf(i)));
+  // A glow is drawn twice, for a stronger halo.
+  if (shadow === "glow" && !outline) shown.forEach((line, i) => line && c.fillText(line, xOf(i), yOf(i)));
+  c.restore();
+  return box;
 }
 
 function wrap(c: CanvasRenderingContext2D, content: string, maxWidth: number): string[] {

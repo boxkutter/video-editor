@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { assetOf, clipEnd, formatTime, moveClip, removeClip, removeTrack, snap, spokenDuration, trimEnd, trimStart, updateTrack, type Clip, type Timeline, type Track } from "../core/timeline";
 import { useCx, useEditor } from "./context";
-import { isMediaDrag, isStyleDrag, readDrag, type DragPayload } from "./drag";
+import { isMediaDrag, isStyleDrag, isTextDrag, readDrag, type DragPayload } from "./drag";
 
 interface Props {
   timeline: Timeline;
@@ -15,11 +15,24 @@ interface Props {
   onEdit: (next: Timeline, select?: string | null) => void;
   /** Something from the media panel was dropped: media on a track at a time, or a look or transition on a clip. */
   onDrop: (payload: DragPayload, place: { trackId: string; at: number; clipId: string | null }) => void;
+  /** Snap on: the playhead and moved clips settle exactly on the nearest clip start, end or join. */
+  snapping: boolean;
+  /** Replace: media dropped onto a clip takes its place (the clip is outlined while dragging). */
+  addMode: "insert" | "replace";
 }
 
 type Drag = { mode: "move" | "start" | "end"; clipId: string; originX: number; before: Timeline; start: number; end: number; moved: boolean };
 const LABEL_WIDTH = 150;
 const ROW_HEIGHT = 46;
+
+/** The clip start, end or join (or the very start) within `threshold` of `at`, nearest first. */
+export function nearestEdge(timeline: Timeline, at: number, threshold: number): number | null {
+  let best: number | null = null;
+  for (const p of [0, ...timeline.tracks.flatMap((t) => t.clips.flatMap((c) => [c.start_ms, clipEnd(c)]))]) {
+    if (Math.abs(p - at) <= threshold && (best === null || Math.abs(p - at) < Math.abs(best - at))) best = p;
+  }
+  return best;
+}
 
 function tickStep(zoom: number): number {
   const wanted = 70 / zoom;
@@ -27,7 +40,7 @@ function tickStep(zoom: number): number {
 }
 
 /** The timeline: a row per track, clips you can select, drag, trim by their ends, or move with the arrow keys. */
-export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, onSeek, onLive, onCommit, onEdit, onDrop }: Props) {
+export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, onSeek, onLive, onCommit, onEdit, onDrop, snapping, addMode }: Props) {
   const { config, t } = useEditor();
   const cx = useCx();
   const drag = useRef<Drag | null>(null);
@@ -48,15 +61,18 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
 
   function placeOf(event: DragEvent<HTMLElement>, trackId: string) {
     const lane = event.currentTarget.getBoundingClientRect();
-    const at = snap(timeline, Math.max(0, ms(event.clientX - lane.left)), playhead, null, ms(8));
+    const at = settle(Math.max(0, ms(event.clientX - lane.left)), null);
     const clipId = (event.target as HTMLElement).closest<HTMLElement>("[data-clip-id]")?.dataset.clipId ?? null;
     return { trackId, at: Math.round(at), clipId };
   }
 
   function dragOver(event: DragEvent<HTMLElement>, trackId: string) {
     if (!isMediaDrag(event)) return;
-    const style = isStyleDrag(event);
     const place = placeOf(event, trackId);
+    // A text style over a title restyles it (the title is outlined); elsewhere it adds a title there.
+    const overTitle = isTextDrag(event) && !!place.clipId && timeline.tracks.some((t) => t.kind === "text" && t.clips.some((c) => c.id === place.clipId));
+    const replacing = addMode === "replace" && !isStyleDrag(event) && !isTextDrag(event) && !!place.clipId;
+    const style = isStyleDrag(event) || overTitle || replacing;
     if (style && !place.clipId) { event.dataTransfer.dropEffect = "none"; setTarget(null); return; }
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
@@ -71,9 +87,62 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
     onDrop(payload, placeOf(event, trackId));
   }
 
-  function seekFrom(event: { clientX: number }) {
+  /** A time under the pointer, snapped to the clips' edges when snapping is on (else exactly where it is). */
+  const settle = (value: number, ignoreId: string | null, against = playhead) => (snapping ? snap(timeline, value, against, ignoreId, ms(8)) : Math.max(0, Math.round(value)));
+  const timeAt = (clientX: number) => {
     const rect = scroller.current?.getBoundingClientRect();
-    if (rect) onSeek(Math.max(0, ms(event.clientX - rect.left - LABEL_WIDTH + (scroller.current?.scrollLeft ?? 0))));
+    return rect ? ms(clientX - rect.left - LABEL_WIDTH + (scroller.current?.scrollLeft ?? 0)) : 0;
+  };
+
+  function seekFrom(event: { clientX: number }) {
+    const at = Math.max(0, timeAt(event.clientX));
+    // Snap on: an edge within a few pixels wins; elsewhere the playhead goes exactly where it is put.
+    const edge = snapping ? nearestEdge(timeline, at, ms(10)) : null;
+    onSeek(edge ?? Math.round(at));
+  }
+
+  // Dragging the playhead (from the ruler or the line): one seek per frame, so it follows smoothly.
+  const [scrubbing, setScrubbing] = useState(false);
+  const scrub = useRef<{ x: number; frame: number } | null>(null);
+  function scrubDown(event: PointerEvent<HTMLElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    scrub.current = { x: event.clientX, frame: 0 };
+    setScrubbing(true);
+    seekFrom(event);
+  }
+  function scrubMove(event: PointerEvent<HTMLElement>) {
+    const s = scrub.current;
+    if (!s) return;
+    s.x = event.clientX;
+    if (s.frame) return;
+    s.frame = requestAnimationFrame(() => {
+      s.frame = 0;
+      if (scrub.current) seekFrom({ clientX: scrub.current.x });
+    });
+  }
+  function scrubUp() {
+    if (scrub.current?.frame) cancelAnimationFrame(scrub.current.frame);
+    if (scrub.current) seekFrom({ clientX: scrub.current.x });
+    scrub.current = null;
+    setScrubbing(false);
+  }
+  function playheadKey(event: KeyboardEvent<HTMLElement>) {
+    const edges = [0, ...timeline.tracks.flatMap((t) => t.clips.flatMap((c) => [c.start_ms, clipEnd(c)]))].sort((a, b) => a - b);
+    const step = event.shiftKey ? 1000 : 100;
+    let to: number | null = null;
+    if (event.key === "ArrowLeft") to = playhead - step;
+    else if (event.key === "ArrowRight") to = playhead + step;
+    else if (event.key === "PageUp") to = [...edges].reverse().find((e) => e < playhead - 1) ?? 0; // previous edge
+    else if (event.key === "PageDown") to = edges.find((e) => e > playhead + 1) ?? playhead; // next edge
+    else if (event.key === "Home") to = 0;
+    else if (event.key === "End") to = edges[edges.length - 1] ?? 0;
+    if (to === null) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSeek(Math.max(0, to));
   }
 
   function down(event: PointerEvent<HTMLElement>, clip: Clip, mode: Drag["mode"]) {
@@ -89,16 +158,15 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
     if (!d || (!d.moved && Math.abs(event.clientX - d.originX) < 3)) return;
     d.moved = true;
     const delta = ms(event.clientX - d.originX);
-    const threshold = ms(8);
     const base = d.before;
     if (d.mode === "move") {
-      const at = snap(base, d.start + delta, playhead, d.clipId, threshold);
-      const atEnd = snap(base, d.end + delta, playhead, d.clipId, threshold);
+      const at = settle(d.start + delta, d.clipId);
+      const atEnd = settle(d.end + delta, d.clipId);
       const chosen = Math.abs(at - (d.start + delta)) <= Math.abs(atEnd - (d.end + delta)) ? at : atEnd - (d.end - d.start);
       const over = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-track-id]")?.dataset.trackId;
       onLive(moveClip(base, d.clipId, chosen, over));
-    } else if (d.mode === "start") onLive(trimStart(base, d.clipId, snap(base, d.start + delta, playhead, d.clipId, threshold)));
-    else onLive(trimEnd(base, d.clipId, snap(base, d.end + delta, playhead, d.clipId, threshold)));
+    } else if (d.mode === "start") onLive(trimStart(base, d.clipId, settle(d.start + delta, d.clipId)));
+    else onLive(trimEnd(base, d.clipId, settle(d.end + delta, d.clipId)));
   }
 
   function up() {
@@ -122,7 +190,7 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
   return (
     <div className={cx("timeline", "ve-timeline")} ref={scroller} role="group" aria-label={t("timeline")} style={{ ["--ve-label" as string]: `${LABEL_WIDTH}px` }}>
       <div className="ve-timeline__inner" style={{ width: width + LABEL_WIDTH }}>
-        <div className="ve-timeline__ruler" onClick={seekFrom} aria-hidden="true">
+        <div className="ve-timeline__ruler" onPointerDown={scrubDown} onPointerMove={scrubMove} onPointerUp={scrubUp} onPointerCancel={scrubUp} aria-hidden="true">
           <span className="ve-timeline__corner" />
           {ticks.map((s) => (
             <span key={s} className="ve-timeline__tick" style={{ left: LABEL_WIDTH + px(s * 1000) }}>
@@ -190,7 +258,12 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
             </div>
           </div>
         ))}
-        <div className="ve-timeline__playhead" aria-hidden="true" style={{ left: LABEL_WIDTH + px(playhead), height: ROW_HEIGHT * rows.length + 28 }} />
+        <div className="ve-timeline__playhead" data-scrubbing={scrubbing || undefined} style={{ left: LABEL_WIDTH + px(playhead), height: ROW_HEIGHT * rows.length + 28 }}
+          role="slider" tabIndex={0} aria-label={t("playhead")} aria-valuemin={0} aria-valuemax={Math.round(end)} aria-valuenow={Math.round(playhead)} aria-valuetext={formatTime(playhead)}
+          onPointerDown={scrubDown} onPointerMove={scrubMove} onPointerUp={scrubUp} onPointerCancel={scrubUp} onKeyDown={playheadKey}>
+          <span className="ve-timeline__playhead-grip" aria-hidden="true" />
+          {scrubbing ? <span className="ve-timeline__playhead-time" aria-hidden="true">{formatTime(playhead)}</span> : null}
+        </div>
       </div>
     </div>
   );

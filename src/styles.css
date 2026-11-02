@@ -121,9 +121,8 @@
 .ve-tl__help[open] .ve-hint { position: absolute; right: 0; top: 1.6rem; z-index: 20; width: min(28rem, 80vw); padding: 0.75rem; background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
 
 /* --- Media panel: tabs, library tiles, drop zones. ---------------------------------------------- */
-.ve-tabs { display: flex; gap: 0; margin: 0 0 0.6rem; border-bottom: 1px solid var(--ve-border); overflow-x: auto; scrollbar-width: none; }
-.ve-tabs::-webkit-scrollbar { display: none; }
-.ve-tab { flex: 1 0 auto; justify-content: center; font: inherit; font-size: 0.8rem; white-space: nowrap; padding: 0.35rem 0.45rem; margin-bottom: -1px; color: var(--ve-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem; }
+.ve-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr)); gap: 0 0.15rem; margin: 0 0 0.6rem; border-bottom: 1px solid var(--ve-border); }
+.ve-tab { justify-content: center; font: inherit; font-size: 0.8rem; white-space: nowrap; padding: 0.35rem 0.45rem; margin-bottom: -1px; color: var(--ve-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem; }
 .ve-tab:hover { color: var(--ve-text); }
 .ve-tab[aria-selected="true"] { color: var(--ve-text); font-weight: 600; border-bottom-color: var(--ve-accent); }
 .ve-tab__count { font-size: 0.7rem; font-weight: 600; min-width: 1.1rem; padding: 0 0.3rem; border-radius: 999px; background: var(--ve-surface); border: 1px solid var(--ve-border); text-align: center; }
@@ -172,7 +171,14 @@
 .ve-timeline__ruler { position: relative; height: 28px; border-bottom: 1px solid var(--ve-border); cursor: pointer; }
 .ve-timeline__corner { position: sticky; left: 0; display: block; width: var(--ve-label); height: 100%; background: var(--ve-surface); z-index: 3; }
 .ve-timeline__tick { position: absolute; top: 4px; font-size: 0.75rem; color: var(--ve-muted); padding-left: 4px; border-left: 1px solid var(--ve-border); }
-.ve-timeline__playhead { position: absolute; top: 0; width: 2px; background: var(--ve-focus); pointer-events: none; z-index: 4; }
+.ve-timeline__playhead { position: absolute; top: 0; width: 2px; margin-left: -1px; background: var(--ve-focus); z-index: 4; cursor: ew-resize; touch-action: none; }
+/* A wider, invisible grip around the line, and a handle on the ruler. */
+.ve-timeline__playhead::before { content: ""; position: absolute; top: 0; bottom: 0; left: -5px; width: 12px; }
+.ve-timeline__playhead-grip { position: absolute; top: 0; left: -6px; width: 14px; height: 14px; background: var(--ve-focus); clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%); }
+.ve-timeline__playhead:focus-visible { outline: 2px solid var(--ve-focus); outline-offset: 3px; }
+.ve-timeline__playhead-time { position: absolute; top: 16px; left: 8px; padding: 0 0.3rem; font-size: 0.7rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: #fff; background: var(--ve-focus); border-radius: 3px; pointer-events: none; }
+.ve-timeline__ruler { touch-action: none; user-select: none; }
+.ve-snap[aria-pressed="true"] { border-color: var(--ve-accent); color: var(--ve-accent); }
 .ve-track { display: flex; border-bottom: 1px solid var(--ve-border); }
 .ve-track__label { position: sticky; left: 0; z-index: 3; flex: 0 0 var(--ve-label); width: var(--ve-label); box-sizing: border-box; padding: 2px 6px; background: var(--ve-surface); border-right: 1px solid var(--ve-border); display: flex; flex-wrap: wrap; gap: 2px; align-content: center; overflow: hidden; }
 .ve-track__name { flex: 1 1 100%; font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -189,3 +195,45 @@
 .ve-clip__handle--start { left: 0; border-radius: 4px 0 0 4px; }
 .ve-clip__handle--end { right: 0; border-radius: 0 4px 4px 0; }
 .ve-finished__player { width: 100%; max-width: 40rem; background: #000; border-radius: var(--ve-radius); }
+
+/* --- Titles: text style tiles, colour swatches. --------------------------------------------------- */
+.ve-library--text { grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); }
+.ve-tile--text { padding: 0.2rem; }
+.ve-tile__textthumb { aspect-ratio: 16 / 9; padding: 0.3rem; font-size: 0.95rem; line-height: 1.1; text-align: center; background: linear-gradient(135deg, #2b3445, #11151d); }
+.ve-tile__textthumb > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ve-swatches__label { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
+.ve-swatches { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ve-swatch { position: relative; width: 1.6rem; height: 1.6rem; padding: 0; border-radius: 999px; border: 1px solid var(--ve-border); box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15); cursor: pointer; }
+.ve-swatch[aria-checked="true"], .ve-swatch--custom[data-on] { outline: 2px solid var(--ve-accent); outline-offset: 2px; }
+.ve-swatch--custom { display: inline-grid; place-items: center; overflow: hidden; background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); }
+.ve-swatch--custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.ve-checks { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; }
+.ve-checks label { display: inline-flex; flex-direction: row; align-items: center; gap: 0.35rem; margin: 0; font-weight: 400; }
+.ve-checks input[type="checkbox"] { width: auto; margin: 0; flex: none; }
+
+/* --- Moving things on the preview; reviewing a file there. ---------------------------------------- */
+.ve-stage__screen { position: relative; }
+.ve-stage__canvas { touch-action: none; }
+.ve-guide { position: absolute; pointer-events: none; background: var(--ve-focus); opacity: 0.85; z-index: 2; }
+.ve-guide--v { top: 0; bottom: 0; left: 50%; width: 1px; }
+.ve-guide--h { left: 0; right: 0; top: 50%; height: 1px; }
+.ve-stage__screen[data-reviewing] .ve-stage__canvas { display: none; }
+.ve-review { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.ve-review__name { flex: 1 1 10rem; margin: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ve-review__media { display: block; max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.ve-review__audio { width: min(28rem, 90%); }
+.ve-root[data-layout="workspace"] .ve-stage__screen[data-reviewing] { display: grid; place-items: center; }
+
+/* --- Library tiles with their own Add button; insert or replace. ----------------------------------- */
+.ve-tile-wrap { display: grid; gap: 0.2rem; }
+.ve-tile__add { font: inherit; font-size: 0.72rem; padding: 0.15rem 0.3rem; border-radius: var(--ve-radius); border: 1px solid var(--ve-border); background: var(--ve-surface); color: var(--ve-text); cursor: pointer; }
+.ve-tile__add:hover { border-color: var(--ve-accent); color: var(--ve-accent); }
+.ve-addmode { display: flex; align-items: center; gap: 0.25rem; margin: 0 0 0.6rem; font-size: 0.8rem; }
+.ve-addmode__label { color: var(--ve-muted); margin-right: 0.25rem; }
+.ve-addmode__option { font: inherit; padding: 0.2rem 0.6rem; border: 1px solid var(--ve-border); background: var(--ve-bg); color: var(--ve-text); cursor: pointer; }
+.ve-addmode__option:first-of-type { border-radius: var(--ve-radius) 0 0 var(--ve-radius); }
+.ve-addmode__option:last-of-type { border-radius: 0 var(--ve-radius) var(--ve-radius) 0; margin-left: -1px; }
+.ve-addmode__option[aria-checked="true"] { background: var(--ve-accent); border-color: var(--ve-accent); color: var(--ve-accent-text); }
+.ve-linkish { all: unset; cursor: pointer; font-weight: 600; word-break: break-word; }
+.ve-linkish:hover { text-decoration: underline; }
+.ve-linkish:focus-visible { outline: 3px solid var(--ve-focus); outline-offset: 2px; }

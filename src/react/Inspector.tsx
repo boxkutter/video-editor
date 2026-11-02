@@ -2,7 +2,9 @@ import { useId } from "react";
 import { cropPresets, effectsOffered } from "../core/config";
 import { cropToRatio } from "../core/state";
 import { EFFECTS, MIN_CLIP_MS, alignClip, assetOf, clipEnd, moveClip, setEffect, setSpeed, trimEnd, trimStart, updateClip, type Clip, type Timeline, type Track } from "../core/timeline";
+import type { LabelKey } from "../core/labels";
 import { useCx, useEditor } from "./context";
+import { TextSettings } from "./TextSettings";
 
 interface Props {
   timeline: Timeline;
@@ -12,6 +14,12 @@ interface Props {
   onChange: (next: Timeline, opts?: { live?: boolean }) => void;
   onCommit: () => void;
 }
+
+/** Quick places: [label, x, y]; null keeps that offset. */
+const PLACES: [LabelKey, number | null, number | null][] = [
+  ["placeTop", null, -0.75], ["placeMiddle", null, 0], ["placeLowerThird", null, 0.55], ["placeBottom", null, 0.8],
+  ["placeLeft", -0.5, null], ["placeCentre", 0, null], ["placeRight", 0.5, null],
+];
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const seconds = (ms: number) => Math.round(ms / 10) / 100;
@@ -65,7 +73,6 @@ export function Inspector({ timeline, track, clip, playhead, onChange, onCommit 
     next.y = Math.min(Math.max(next.y, 0), 1 - next.h);
     return updateClip(timeline, clip.id, { crop: next });
   };
-  const setText = (patch: Partial<NonNullable<typeof text>>, live = false) => text && onChange(updateClip(timeline, clip.id, { text: { ...text, ...patch } }), live ? { live: true } : undefined);
   const canTrim = playhead > clip.start_ms && playhead < clipEnd(clip);
   const presets = cropPresets(config);
   const effects = effectsOffered(config);
@@ -77,41 +84,7 @@ export function Inspector({ timeline, track, clip, playhead, onChange, onCommit 
         {text ? t("titleHeading") : asset?.name || t("clipHeading")}
       </h2>
 
-      {text ? (
-        <fieldset>
-          <legend>{t("text")}</legend>
-          <div className={field}>
-            <label htmlFor={`${uid}-text`}>{t("onScreenText")}</label>
-            <textarea id={`${uid}-text`} className={input} rows={3} maxLength={500} value={text.content} onChange={(e) => setText({ content: e.target.value || " " }, true)} onBlur={onCommit} />
-          </div>
-          {range(t("size"), text.font_size, 0.02, 0.3, 0.005, (n) => updateClip(timeline, clip.id, { text: { ...text, font_size: n } }), (n) => `${Math.round(n * 100)}`)}
-          <div className="ve-row">
-            <div className={field}>
-              <label htmlFor={`${uid}-colour`}>{t("colour")}</label>
-              <input id={`${uid}-colour`} type="color" value={text.color} onChange={(e) => setText({ color: e.target.value }, true)} onBlur={onCommit} />
-            </div>
-            <div className={field}>
-              <label htmlFor={`${uid}-align`}>{t("alignment")}</label>
-              <select id={`${uid}-align`} className={input} value={text.align} onChange={(e) => setText({ align: e.target.value as "left" | "center" | "right" })}>
-                <option value="left">{t("alignLeft")}</option>
-                <option value="center">{t("alignCentre")}</option>
-                <option value="right">{t("alignRight")}</option>
-              </select>
-            </div>
-          </div>
-          <div className={field}>
-            <label><input type="checkbox" checked={text.weight === "bold"} onChange={(e) => setText({ weight: e.target.checked ? "bold" : "normal" })} /> {t("bold")}</label>
-            <label><input type="checkbox" checked={text.italic} onChange={(e) => setText({ italic: e.target.checked })} /> {t("italic")}</label>
-            <label><input type="checkbox" checked={text.background !== null} onChange={(e) => setText({ background: e.target.checked ? "#000000" : null })} /> {t("boxBehind")}</label>
-          </div>
-          {text.background !== null ? (
-            <div className={field}>
-              <label htmlFor={`${uid}-bg`}>{t("boxColour")}</label>
-              <input id={`${uid}-bg`} type="color" value={text.background} onChange={(e) => setText({ background: e.target.value }, true)} onBlur={onCommit} />
-            </div>
-          ) : null}
-        </fieldset>
-      ) : null}
+      {text ? <TextSettings timeline={timeline} clip={clip} text={text} onChange={onChange} onCommit={onCommit} /> : null}
 
       {f.trim || f.arrange || f.speed ? (
         <fieldset>
@@ -172,6 +145,15 @@ export function Inspector({ timeline, track, clip, playhead, onChange, onCommit 
       {f.placement && track.kind !== "audio" ? (
         <fieldset>
           <legend>{t("placement")}</legend>
+          <div className={acts} role="group" aria-label={t("placeQuickly")}>
+            {PLACES.map(([key, x, y]) => (
+              <button key={key} type="button" className={btn2} aria-pressed={Math.abs(clip.x - (x ?? clip.x)) < 0.005 && Math.abs(clip.y - (y ?? clip.y)) < 0.005}
+                onClick={() => onChange(updateClip(timeline, clip.id, { ...(x === null ? {} : { x }), ...(y === null ? {} : { y }) }))}>
+                {t(key)}
+              </button>
+            ))}
+          </div>
+          <span className="ve-hint">{t("dragOnPreview")}</span>
           {range(t("across"), clip.x, -1, 1, 0.01, (n) => updateClip(timeline, clip.id, { x: n }), (n) => pos(n, "right", "left"))}
           {range(t("upDown"), clip.y, -1, 1, 0.01, (n) => updateClip(timeline, clip.id, { y: n }), (n) => pos(n, "lower", "higher"))}
           {range(t("size"), clip.scale, 0.1, 3, 0.05, (n) => updateClip(timeline, clip.id, { scale: n }), pct)}

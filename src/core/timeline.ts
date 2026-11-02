@@ -5,6 +5,7 @@
  * returns a new timeline and keeps the rules the API enforces (clips on a track never overlap,
  * a clip is at least MIN_CLIP_MS long), so a saved project is never refused for its shape.
  */
+import type { TextAnimation } from "./text";
 
 export const MIN_CLIP_MS = 100;
 export const MAX_DURATION_MS = 2 * 60 * 60 * 1000;
@@ -44,6 +45,23 @@ export interface TextStyle {
   italic: boolean;
   color: string;
   background: string | null;
+  /** A font id from the editor's fonts (`text.fonts`); unknown or missing means the default font. */
+  font?: string;
+  uppercase?: boolean;
+  /** Extra space between letters, in font sizes (-0.1 to 0.5). */
+  letter_spacing?: number;
+  /** Line spacing, in font sizes (0.8 to 2.5; 1.25 when missing). */
+  line_height?: number;
+  /** A line around each letter; `width` in font sizes (up to 0.3). */
+  outline?: { color: string; width: number } | null;
+  /** Missing: a soft shadow without a box, none with one (as before these existed). */
+  shadow?: "none" | "soft" | "hard" | "glow";
+  shadow_color?: string;
+  /** The box behind the text: how opaque (0 to 1) and how round its corners (0 to 1). */
+  box_opacity?: number;
+  box_radius?: number;
+  /** How the title comes in and goes out (with lengths in milliseconds). */
+  animation?: { in: TextAnimation; out: TextAnimation; in_ms: number; out_ms: number };
 }
 
 export interface Clip {

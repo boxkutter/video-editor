@@ -6,4 +6,6 @@ export * from "./labels";
 export * from "./engine";
 export * from "./capture";
 export * from "./styles";
+export * from "./text";
+export * from "./edits";
 export { withDuration } from "./webm";

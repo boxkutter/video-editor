@@ -119,6 +119,7 @@ in one column.
 - **Your own styles:** skip `styles.css`, target the `.ve-*` classes, or pass `classNames={{ button: "btn", buttonSecondary: "btn btn-outline", input: "form-control", panel: "card" }}`.
 - **Library:** give the adapter `listMedia(kinds)` (resolving to `LibraryItem[]`: `ref`, `kind`, `name`, `durationMs`, `group`, `groupNote`, `thumbnailUrl`) and switch on `features.library`: the files appear on a Library tab inside the editor, to drag onto the timeline or add at the playhead. Change the `libraryKey` prop to list them again. Without `listMedia`, `pickMedia` opens your own chooser.
 - **Looks and transitions:** an Effects tab offers ready-made looks and fades (`LOOKS`, `TRANSITIONS`, `applyLook`, `applyTransition` in the core), dropped onto a clip. They only set a clip's effects and fades.
+- **Titles:** `options.text` takes `fonts` (`FontChoice`: `id`, `label`, CSS `family`, `category`; load the fonts yourself, for example self-hosted web fonts: the editor waits for each before drawing and before an export), `presets` (`TextPreset`) and `colours` (`NamedColour`). Defaults use system fonts only.
 - **Extra UI:** `header` (above the editor), `barStart` (at the start of the top bar, before the title: a link back to your list, say) and `exportActions(media, project)` (after the video is made, for "use in a course" style buttons).
 - **Imperative:** `ref` gives `getProject()` and `save()`.
 

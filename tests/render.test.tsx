@@ -25,6 +25,14 @@ describe("the editor renders what is configured", () => {
     expect(plain).not.toContain(">Effects<");
   });
 
+  it("offers text styles, insert or replace, and snapping", () => {
+    const out = html({ adapter: { ...adapter, listMedia: async () => [] }, options: { features: { library: true } } });
+    expect(out).toContain(">Text<");
+    expect(out).toContain("Big and bold");
+    expect(out).toMatch(/aria-pressed="true"[^>]*>Snap/);
+    expect(out).toContain('role="slider"');
+  });
+
   it("puts the host's content at the start of the top bar", () => {
     expect(html({ barStart: <a href="/videos">All videos</a> })).toMatch(/ve-topbar__start"><a href="\/videos">All videos/);
   });

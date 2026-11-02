@@ -6,7 +6,9 @@ import { VideoEngine, supportsEditing } from "../core/engine";
 import { createT, type LabelOverrides } from "../core/labels";
 import { initialState, reduce, sizeId } from "../core/state";
 import { applyLook, applyTransition, takesLook, type LookId, type TransitionId } from "../core/styles";
-import { MAX_DURATION_MS, addAsset, addAssetClip, addTitle, addTrack, closeGaps, duplicateClip, emptyTimeline, findClip, formatTime, newId, removeClip, rippleRemove, splitClip, timelineEnd, type Asset, type Timeline } from "../core/timeline";
+import { addStyledTitle, applyTextPreset } from "../core/text";
+import { placeClip, type AddMode } from "../core/edits";
+import { MAX_DURATION_MS, addAsset, addAssetClip, addTitle, addTrack, closeGaps, duplicateClip, emptyTimeline, findClip, formatTime, newId, removeClip, rippleRemove, splitClip, timelineEnd, updateClip, type Asset, type Timeline } from "../core/timeline";
 import { withDuration } from "../core/webm";
 import { EditorProvider, useCx, useEditor, type ClassNames } from "./context";
 import { Inspector } from "./Inspector";
@@ -35,6 +37,15 @@ export interface VideoEditorProps {
   libraryKey?: unknown;
   /** Content at the start of the top bar, before the title (for example a link back to the host's list). */
   barStart?: ReactNode;
+}
+
+type Place = { at: number; trackId?: string; clipId?: string | null };
+
+/** A file on its own in the preview, with the browser's own controls. */
+function Review({ media, url }: { media: MediaRef; url: string }) {
+  if (media.kind === "image") return <img className="ve-review__media" src={url} alt={media.name ?? ""} />;
+  if (media.kind === "audio") return <audio className="ve-review__audio" src={url} controls autoPlay />;
+  return <video className="ve-review__media" src={url} controls autoPlay playsInline />;
 }
 
 export interface VideoEditorHandle {
@@ -74,6 +85,13 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
   const [message, setMessage] = useState<string | null>(null);
   const [exported, setExported] = useState<MediaRef | null>(existingExport ?? null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [snapping, setSnapping] = useState(true);
+  const [addMode, setAddMode] = useState<AddMode>("insert");
+  const addModeRef = useRef(addMode);
+  addModeRef.current = addMode;
+  /** A file shown in the preview for a look before it is used (the timeline is set aside meanwhile). */
+  const [review, setReview] = useState<MediaRef | null>(null);
+  const [guides, setGuides] = useState<{ v: boolean; h: boolean } | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   // A host that finishes the video on its server passes the processed file later: show that one.
   const existingRef = existingExport?.ref;
@@ -116,6 +134,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
   }, [capable.ok]);
   useEffect(() => engine.current?.setTimeline(timeline), [timeline]);
   useEffect(() => engine.current?.resize(size.width, size.height), [size.width, size.height]);
+  useEffect(() => engine.current?.setFonts(config.text.fonts), [config.text.fonts, capable.ok]);
 
   const save = useCallback(async () => {
     if (!adapter.saveProject) return;
@@ -170,25 +189,25 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
   }, []);
 
   // Media arrives after an upload or a probe, so these read the timeline as it is then, not as it was.
-  function placeAsset(asset: Asset, addToTimeline: boolean, place?: { trackId?: string; at: number }) {
+  function placeAsset(asset: Asset, addToTimeline: boolean, place?: Place) {
     const timeline = stateRef.current.timeline;
     if (timeline.assets.length >= config.limits.maxAssets) return setMessage(t("fileRefused", { name: asset.name }));
     let next = addAsset(timeline, asset);
     let select: string | null | undefined;
     if (addToTimeline) {
-      const placed = addAssetClip(next, asset.id, place?.at ?? (asset.kind === "audio" ? time : 0), place?.trackId);
+      const placed = place ? placeClip(next, asset.id, place.at, addModeRef.current, place) : addAssetClip(next, asset.id, asset.kind === "audio" ? time : 0);
       if (placed) { next = placed.timeline; select = placed.clipId; }
     }
     edit(next, select);
   }
 
   /** A library file onto the timeline (at the playhead, or where it was dropped); added to the project once. */
-  async function addMedia(media: MediaRef, place?: { trackId?: string; at: number }) {
+  async function addMedia(media: MediaRef, place?: Place) {
     setMessage(null);
     const at = place ?? { at: time };
     const known = stateRef.current.timeline.assets.find((a) => a.ref === media.ref && a.kind === media.kind);
     if (known) {
-      const placed = addAssetClip(stateRef.current.timeline, known.id, at.at, at.trackId);
+      const placed = placeClip(stateRef.current.timeline, known.id, at.at, addModeRef.current, at);
       if (placed) edit(placed.timeline, placed.clipId);
       return;
     }
@@ -210,9 +229,72 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
     } else edit(applyTransition(current, clipId, style.transition, at), clipId);
   }
 
+  function addText(presetId: string, at: number) {
+    const preset = config.text.presets.find((p) => p.id === presetId) ?? null;
+    const r = addStyledTitle(stateRef.current.timeline, at, preset);
+    edit(r.timeline, r.clipId);
+  }
+
+  // Dragging a title or picture on the preview moves it (and selects it). Snap on, it settles on the
+  // centre lines when close to them, shown by guides.
+  const stageDrag = useRef<{ id: string; px: number; py: number; k: number; x: number; y: number; before: Timeline; moved: boolean } | null>(null);
+  function canvasPoint(event: { clientX: number; clientY: number }) {
+    const el = canvas.current!;
+    const r = el.getBoundingClientRect();
+    const k = Math.min(r.width / el.width, r.height / el.height);
+    return { x: (event.clientX - r.left - (r.width - el.width * k) / 2) / k, y: (event.clientY - r.top - (r.height - el.height * k) / 2) / k, k };
+  }
+  function stageDown(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (event.button !== 0 || playing || !engine.current) return;
+    const p = canvasPoint(event);
+    const id = engine.current.clipAt(p.x, p.y);
+    if (!id) return;
+    const found = findClip(stateRef.current.timeline, id);
+    if (!found || found.track.kind === "audio") return;
+    dispatch({ type: "select", id });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    stageDrag.current = { id, px: event.clientX, py: event.clientY, k: p.k, x: found.clip.x, y: found.clip.y, before: stateRef.current.timeline, moved: false };
+  }
+  function stageMove(event: React.PointerEvent<HTMLCanvasElement>) {
+    const d = stageDrag.current;
+    const el = canvas.current;
+    if (!el) return;
+    if (!d) {
+      if (!playing && engine.current) { const p = canvasPoint(event); el.style.cursor = engine.current.clipAt(p.x, p.y) ? "move" : ""; }
+      return;
+    }
+    const dx = (event.clientX - d.px) / d.k;
+    const dy = (event.clientY - d.py) / d.k;
+    if (!d.moved && Math.hypot(dx, dy) < 3) return;
+    d.moved = true;
+    let x = Math.max(-1, Math.min(1, d.x + (dx * 2) / el.width));
+    let y = Math.max(-1, Math.min(1, d.y + (dy * 2) / el.height));
+    const near = 0.03;
+    const v = snapping && Math.abs(x) < near;
+    const h = snapping && Math.abs(y) < near;
+    if (v) x = 0;
+    if (h) y = 0;
+    setGuides({ v, h });
+    live(updateClip(d.before, d.id, { x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 }));
+  }
+  function stageUp() {
+    const d = stageDrag.current;
+    stageDrag.current = null;
+    setGuides(null);
+    if (d?.moved) commit(d.before);
+  }
+
   function dropped(payload: DragPayload, place: { trackId: string; at: number; clipId: string | null }) {
+    setReview(null);
+    if ("text" in payload) {
+      const preset = config.text.presets.find((p) => p.id === payload.text);
+      const current = stateRef.current.timeline;
+      const onTitle = place.clipId ? findClip(current, place.clipId) : null;
+      if (preset && onTitle?.clip.text) return edit(applyTextPreset(current, onTitle.clip.id, preset), onTitle.clip.id);
+      return addText(payload.text, place.at);
+    }
     if ("asset" in payload) {
-      const placed = addAssetClip(stateRef.current.timeline, payload.asset, place.at, place.trackId);
+      const placed = placeClip(stateRef.current.timeline, payload.asset, place.at, addModeRef.current, place);
       if (placed) edit(placed.timeline, placed.clipId);
     } else if ("media" in payload) void addMedia(payload.media, place);
     else if (place.clipId) applyStyle(payload, place.clipId, place.at);
@@ -234,7 +316,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
   const togglePlay = useCallback(async () => {
     const e = engine.current;
     if (!e) return;
-    if (e.isPlaying) { e.pause(); setPlaying(false); } else { setPlaying(true); await e.play(time); }
+    if (e.isPlaying) { e.pause(); setPlaying(false); } else { setReview(null); setPlaying(true); await e.play(time); }
   }, [time]);
   const seek = useCallback((ms: number) => {
     setPlaying(false);
@@ -330,14 +412,26 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
 
       <div className="ve-work" data-media={f.mediaPanel} data-inspector={f.inspector}>
         {f.mediaPanel ? <MediaPanel timeline={timeline} onAsset={placeAsset} onAddMedia={(m) => void addMedia(m)} libraryKey={libraryKey}
-          selection={selection ? { clipId: selection.clip.id, kind: selection.track.kind } : null} onStyle={(style, id) => applyStyle(style, id)} onAddToTimeline={(id) => { const p = addAssetClip(timeline, id, time); if (p) edit(p.timeline, p.clipId); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
+          selection={selection ? { clipId: selection.clip.id, kind: selection.track.kind } : null} onStyle={(style, id) => applyStyle(style, id)} onAddText={(id) => addText(id, time)} onAddToTimeline={(id) => { const p = placeClip(timeline, id, time, addMode); if (p) edit(p.timeline, p.clipId); }}
+          addMode={addMode} onAddMode={setAddMode} onReview={(m) => { if (playing) void togglePlay(); setReview(m); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
 
         <section className={cx("panel", "ve-panel ve-stage")} aria-labelledby={`${uid}-preview`} hidden={!f.preview}>
           <h2 id={`${uid}-preview`} className="ve-visually-hidden">{t("preview")}</h2>
-          <div className="ve-stage__screen">
-            <canvas ref={canvas} className="ve-stage__canvas" width={size.width} height={size.height} role="img" aria-label={t("previewAt", { time: formatTime(time) })} />
+          {review ? (
+            <div className="ve-review" role="group" aria-label={t("reviewing", { name: review.name ?? review.ref })}>
+              <p className="ve-review__name">{t("reviewing", { name: review.name ?? review.ref })}</p>
+              <button type="button" className={btn} onClick={() => { void addMedia(review); setReview(null); }}>{t("addToTimeline")}</button>
+              <button type="button" className={btn2} onClick={() => setReview(null)}>{t("backToTimeline")}</button>
+            </div>
+          ) : null}
+          <div className="ve-stage__screen" data-reviewing={review ? true : undefined} onKeyDown={(e) => { if (review && e.key === "Escape") setReview(null); }}>
+            {review ? <Review media={review} url={review.url ?? adapter.mediaUrl({ ref: review.ref, kind: review.kind, name: review.name ?? review.ref })} /> : null}
+            <canvas ref={canvas} className="ve-stage__canvas" width={size.width} height={size.height} role="img" aria-label={t("previewAt", { time: formatTime(time) })}
+              onPointerDown={stageDown} onPointerMove={stageMove} onPointerUp={stageUp} onPointerCancel={stageUp} />
+            {guides?.v ? <span className="ve-guide ve-guide--v" aria-hidden="true" /> : null}
+            {guides?.h ? <span className="ve-guide ve-guide--h" aria-hidden="true" /> : null}
           </div>
-          <div className="ve-transport" role="group" aria-label={t("playback")}>
+          <div className="ve-transport" role="group" aria-label={t("playback")} hidden={!!review}>
             <button type="button" className={`${btn2} ve-icon-button`} onClick={() => seek(0)} aria-label={t("toStart")} title={t("toStart")}><Icon d="M6 5v14M18 6l-9 6 9 6z" /></button>
             <button type="button" className={`${btn2} ve-icon-button`} onClick={() => seek(time - 1000)} aria-label={t("back1")} title={t("back1")}><Icon d="M11 6l-7 6 7 6zM20 6l-7 6 7 6z" /></button>
             <button type="button" className={`${btn} ve-transport__play`} onClick={() => void togglePlay()} aria-pressed={playing} disabled={duration === 0}>{playing ? t("pause") : t("play")}</button>
@@ -368,6 +462,9 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
               <button type="button" className={btn2} title={t("addVideoTrackHelp")} onClick={() => edit(addTrack(timeline, "video"))}>{t("addVideoTrack")}</button>
               <button type="button" className={btn2} title={t("addAudioTrackHelp")} onClick={() => edit(addTrack(timeline, "audio"))}>{t("addAudioTrack")}</button>
             </> : null}
+            <button type="button" className={`${btn2} ve-snap`} aria-pressed={snapping} title={t("snapHelp")} onClick={() => setSnapping((v) => !v)}>
+              {t("snap")}: {snapping ? t("on") : t("off")}
+            </button>
             {f.zoom ? (
               <div className={`${field} ve-zoom`}>
                 <label htmlFor={`${uid}-zoom`}>{t("zoom")}</label>
@@ -379,7 +476,7 @@ function Editor({ project, existingExport, exportActions, header, barStart, libr
               <p className="ve-hint">{t("timelineHelp")}</p>
             </details>
           </div>
-          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} onDrop={dropped} />
+          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} onDrop={dropped} snapping={snapping} addMode={addMode} />
         </section>
       </div>
 
