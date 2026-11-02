@@ -1,6 +1,6 @@
 {
   "name": "@boxkutter/video-editor",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "An embeddable, configurable browser video editor: record or upload, trim, crop, titles, effects and a timeline. Framework-free core, React UI and a web component.",
   "license": "UNLICENSED",
   "private": false,

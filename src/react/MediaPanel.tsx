@@ -194,8 +194,10 @@ function RecordPanel({ modes, disabled, onRecorded, onError }: { modes: CaptureM
   const btn = cx("button", "ve-button");
   const btn2 = cx("buttonSecondary", "ve-button ve-button--secondary");
   return (
-    <fieldset className="ve-record">
-      <legend>{t("recordFromComputer")}</legend>
+    // Folded by default: in the workspace the media column has a fixed height, and recording is
+    // used less often than adding files. Its state is kept while folded.
+    <details className="ve-record">
+      <summary>{t("recordFromComputer")}</summary>
       {phase === "idle" || phase === "preparing" ? (
         <>
           <div className={cx("field", "ve-field")}>
@@ -238,6 +240,6 @@ function RecordPanel({ modes, disabled, onRecorded, onError }: { modes: CaptureM
         </div>
       ) : null}
       {phase === "saving" ? <p role="status">{t("savingRecording")}</p> : null}
-    </fieldset>
+    </details>
   );
 }

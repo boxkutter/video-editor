@@ -79,6 +79,12 @@ export interface EditorConfig {
   autosave: number | false;
   /** Pixels per second the timeline starts at. */
   zoom: number;
+  /**
+   * "workspace" (default): an editing workspace of the host's height (CSS variable --ve-height): media,
+   * preview and clip settings side by side, the timeline across the bottom, each scrolling on its own,
+   * like a desktop video editor; on narrow screens the parts stack. "stacked": everything in one column.
+   */
+  layout: "workspace" | "stacked";
   /** Set when the host serves media from another origin: needed to read it onto the canvas. */
   crossOrigin?: "anonymous" | "use-credentials";
 }
@@ -129,6 +135,7 @@ export const DEFAULT_CONFIG: EditorConfig = {
   canvas: { width: 1280, height: 720, fps: 30, sizes: DEFAULT_SIZES, fpsChoices: [24, 25, 30, 60] },
   autosave: 1500,
   zoom: 60,
+  layout: "workspace",
 };
 
 /** The configuration with every default filled in. Unknown feature names are ignored. */
@@ -147,6 +154,7 @@ export function resolveConfig(options: EditorOptions = {}): EditorConfig {
     canvas,
     autosave: options.autosave === undefined ? DEFAULT_CONFIG.autosave : options.autosave,
     zoom: options.zoom ?? DEFAULT_CONFIG.zoom,
+    layout: options.layout === "stacked" ? "stacked" : "workspace",
     crossOrigin: options.crossOrigin,
   };
 }

@@ -66,6 +66,8 @@ function Editor({ project, existingExport, exportActions, header, className, han
   const [saving, setSaving] = useState<Saving>("saved");
   const [message, setMessage] = useState<string | null>(null);
   const [exported, setExported] = useState<MediaRef | null>(existingExport ?? null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   // A host that finishes the video on its server passes the processed file later: show that one.
   const existingRef = existingExport?.ref;
   useEffect(() => {
@@ -224,58 +226,77 @@ function Editor({ project, existingExport, exportActions, header, className, han
   if (!capable.ok) return <div className="ve-root"><p className={cx("alert", "ve-alert")} role="alert">{t("unsupportedBrowser")}</p></div>;
 
   return (
-    <div id={`${uid}-root`} className={cx("root", `ve-root ${className ?? ""}`)}>
+    <div id={`${uid}-root`} className={cx("root", `ve-root ${className ?? ""}`)} data-layout={config.layout}>
       {header}
-      {f.projectBar ? (
-        <div className={cx("panel", "ve-panel ve-bar")}>
-          <div className={`${field} ve-bar__title`}>
-            <label htmlFor={`${uid}-title`}>{t("projectTitle")}</label>
-            <input id={`${uid}-title`} className={input} value={title} maxLength={300} onChange={(e) => { setTitle(e.target.value); metaRevision.current += 1; }} />
+      {/* The top bar: the title, the picture settings in a popover, undo/redo, saving and export. One slim row. */}
+      <div className={cx("panel", "ve-topbar")} role="toolbar" aria-label={t("projectBar")}>
+        {f.projectBar ? (
+          <input id={`${uid}-title`} className={`${input} ve-topbar__title`} aria-label={t("projectTitle")} value={title} maxLength={300}
+            onChange={(e) => { setTitle(e.target.value); metaRevision.current += 1; }} />
+        ) : <span className="ve-topbar__title ve-topbar__title--static">{title}</span>}
+        {f.projectBar ? (
+          <div className="ve-topbar__group">
+            <button type="button" className={btn2} aria-expanded={settingsOpen} aria-controls={`${uid}-settings`} onClick={() => setSettingsOpen((o) => !o)}>
+              <span className="ve-topbar__meta">{`${size.width} × ${size.height} · ${size.fps} ${t("fps")}`}</span>
+            </button>
+            {settingsOpen ? (
+              <div id={`${uid}-settings`} className="ve-popover" role="dialog" aria-label={t("videoSettings")}
+                onKeyDown={(e) => { if (e.key === "Escape") setSettingsOpen(false); }}>
+                {config.canvas.sizes.length > 0 ? (
+                  <div className={field}>
+                    <label htmlFor={`${uid}-size`}>{t("pictureSize")}</label>
+                    <select id={`${uid}-size`} className={input} value={sizeId(size.width, size.height, config.canvas.sizes)} onChange={(e) => { const s = config.canvas.sizes.find((x) => x.id === e.target.value); if (s) { setSize((p) => ({ ...p, width: s.width, height: s.height })); metaRevision.current += 1; } }}>
+                      {sizeId(size.width, size.height, config.canvas.sizes) === "custom" ? <option value="custom">{size.width} × {size.height}</option> : null}
+                      {config.canvas.sizes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    </select>
+                  </div>
+                ) : null}
+                {config.canvas.fpsChoices.length > 0 ? (
+                  <div className={field}>
+                    <label htmlFor={`${uid}-fps`}>{t("framesPerSecond")}</label>
+                    <select id={`${uid}-fps`} className={input} value={size.fps} onChange={(e) => { setSize((p) => ({ ...p, fps: Number(e.target.value) })); metaRevision.current += 1; }}>
+                      {config.canvas.fpsChoices.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                ) : null}
+                <button type="button" className={btn2} onClick={() => setSettingsOpen(false)}>{t("close")}</button>
+              </div>
+            ) : null}
           </div>
-          {config.canvas.sizes.length > 0 ? (
-            <div className={field}>
-              <label htmlFor={`${uid}-size`}>{t("pictureSize")}</label>
-              <select id={`${uid}-size`} className={input} value={sizeId(size.width, size.height, config.canvas.sizes)} onChange={(e) => { const s = config.canvas.sizes.find((x) => x.id === e.target.value); if (s) { setSize((p) => ({ ...p, width: s.width, height: s.height })); metaRevision.current += 1; } }}>
-                {sizeId(size.width, size.height, config.canvas.sizes) === "custom" ? <option value="custom">{size.width} × {size.height}</option> : null}
-                {config.canvas.sizes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-              </select>
-            </div>
-          ) : null}
-          {config.canvas.fpsChoices.length > 0 ? (
-            <div className={field}>
-              <label htmlFor={`${uid}-fps`}>{t("framesPerSecond")}</label>
-              <select id={`${uid}-fps`} className={input} value={size.fps} onChange={(e) => { setSize((p) => ({ ...p, fps: Number(e.target.value) })); metaRevision.current += 1; }}>
-                {config.canvas.fpsChoices.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          ) : null}
-          {canSave ? (
-            <p className="ve-muted ve-bar__save" role="status" aria-live="polite">
-              {saveText}{" "}
-              {saving === "error" || saving === "dirty" ? <button type="button" className={btn2} onClick={() => void save()}>{t("saveNow")}</button> : null}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
+        {f.history ? (
+          <div className="ve-topbar__group" role="group" aria-label={t("history")}>
+            <button type="button" className={btn2} onClick={() => dispatch({ type: "undo" })} disabled={state.past.length === 0}>{t("undo")}</button>
+            <button type="button" className={btn2} onClick={() => dispatch({ type: "redo" })} disabled={state.future.length === 0}>{t("redo")}</button>
+          </div>
+        ) : null}
+        {canSave ? (
+          <p className="ve-muted ve-topbar__save" role="status" aria-live="polite">
+            {saveText}{" "}
+            {saving === "error" || saving === "dirty" ? <button type="button" className={btn2} onClick={() => void save()}>{t("saveNow")}</button> : null}
+          </p>
+        ) : null}
+        {canExport ? <button type="button" className={`${btn} ve-topbar__export`} aria-expanded={exportOpen} aria-controls={`${uid}-export`} onClick={() => setExportOpen(true)}>{t("export")}</button> : null}
+      </div>
 
       {message ? <p className={cx("alert", "ve-alert")} role="alert">{message}</p> : null}
 
-      <div className="ve-main" data-media={f.mediaPanel} data-inspector={f.inspector}>
+      <div className="ve-work" data-media={f.mediaPanel} data-inspector={f.inspector}>
         {f.mediaPanel ? <MediaPanel timeline={timeline} onAsset={placeAsset} onAddToTimeline={(id) => { const p = addAssetClip(timeline, id, time); if (p) edit(p.timeline, p.clipId); }} onRemoveAsset={(id) => edit({ ...timeline, assets: timeline.assets.filter((a) => a.id !== id) })} usedAssets={usedAssets} onError={setMessage} /> : null}
 
         <section className={cx("panel", "ve-panel ve-stage")} aria-labelledby={`${uid}-preview`} hidden={!f.preview}>
-          <h2 id={`${uid}-preview`} className={cx("heading", "ve-heading")}>{t("preview")}</h2>
-          <canvas ref={canvas} className="ve-stage__canvas" width={size.width} height={size.height} role="img" aria-label={t("previewAt", { time: formatTime(time) })} />
-          <div className="ve-transport" role="group" aria-label={t("playback")}>
-            <button type="button" className={btn2} onClick={() => seek(0)}>{t("toStart")}</button>
-            <button type="button" className={btn2} onClick={() => seek(time - 1000)}>{t("back1")}</button>
-            <button type="button" className={btn} onClick={() => void togglePlay()} aria-pressed={playing} disabled={duration === 0}>{playing ? t("pause") : t("play")}</button>
-            <button type="button" className={btn2} onClick={() => seek(time + 1000)}>{t("forward1")}</button>
-            <span className="ve-transport__time">{formatTime(time)} / {formatTime(duration)}</span>
+          <h2 id={`${uid}-preview`} className="ve-visually-hidden">{t("preview")}</h2>
+          <div className="ve-stage__screen">
+            <canvas ref={canvas} className="ve-stage__canvas" width={size.width} height={size.height} role="img" aria-label={t("previewAt", { time: formatTime(time) })} />
           </div>
-          <div className={field}>
-            <label htmlFor={`${uid}-pos`}>{t("position")}</label>
-            <input id={`${uid}-pos`} className={input} type="range" min={0} max={Math.max(duration, 1000)} step={100} value={Math.min(time, Math.max(duration, 1000))} aria-valuetext={formatTime(time)} onChange={(e) => seek(Number(e.target.value))} />
+          <div className="ve-transport" role="group" aria-label={t("playback")}>
+            <button type="button" className={`${btn2} ve-icon-button`} onClick={() => seek(0)} aria-label={t("toStart")} title={t("toStart")}><Icon d="M6 5v14M18 6l-9 6 9 6z" /></button>
+            <button type="button" className={`${btn2} ve-icon-button`} onClick={() => seek(time - 1000)} aria-label={t("back1")} title={t("back1")}><Icon d="M11 6l-7 6 7 6zM20 6l-7 6 7 6z" /></button>
+            <button type="button" className={`${btn} ve-transport__play`} onClick={() => void togglePlay()} aria-pressed={playing} disabled={duration === 0}>{playing ? t("pause") : t("play")}</button>
+            <button type="button" className={`${btn2} ve-icon-button`} onClick={() => seek(time + 1000)} aria-label={t("forward1")} title={t("forward1")}><Icon d="M13 6l7 6-7 6zM4 6l7 6-7 6z" /></button>
+            <label htmlFor={`${uid}-pos`} className="ve-visually-hidden">{t("position")}</label>
+            <input id={`${uid}-pos`} className={`${input} ve-transport__position`} type="range" min={0} max={Math.max(duration, 1000)} step={100} value={Math.min(time, Math.max(duration, 1000))} aria-valuetext={formatTime(time)} onChange={(e) => seek(Number(e.target.value))} />
+            <span className="ve-transport__time">{formatTime(time)} / {formatTime(duration)}</span>
           </div>
         </section>
 
@@ -283,39 +304,46 @@ function Editor({ project, existingExport, exportActions, header, className, han
           selection ? <Inspector key={selection.clip.id} timeline={timeline} track={selection.track} clip={selection.clip} playhead={time} onChange={(next, o) => (o?.live ? live(next) : edit(next))} onCommit={() => commit()} />
           : <section className={cx("panel", "ve-panel ve-inspector")}><h2 className={cx("heading", "ve-heading")}>{t("clipSettings")}</h2><p className="ve-muted">{t("selectAClip")}</p></section>
         ) : null}
+
+        <section className={cx("panel", "ve-panel ve-tl")} aria-labelledby={`${uid}-tl`}>
+          <div className={cx("actions", "ve-actions ve-tl__tools")} role="toolbar" aria-label={t("editingTools")}>
+            <h2 id={`${uid}-tl`} className={cx("heading", "ve-heading ve-tl__heading")}>{t("timeline")}</h2>
+            {f.split ? <button type="button" className={btn2} onClick={split} title={t("splitHelp")}>{t("split")}</button> : null}
+            <button type="button" className={btn2} disabled={!selection} title={t("deleteClipHelp")} onClick={() => selection && edit(removeClip(timeline, selection.clip.id), null)}>{t("deleteClip")}</button>
+            {f.arrange ? <>
+              <button type="button" className={btn2} disabled={!selection} title={t("deleteCloseHelp")} onClick={() => selection && edit(rippleRemove(timeline, selection.clip.id), null)}>{t("deleteClose")}</button>
+              <button type="button" className={btn2} disabled={!selection} onClick={() => { const d = selection && duplicateClip(timeline, selection.clip.id); if (d) edit(d.timeline, d.clipId); }}>{t("duplicate")}</button>
+              <button type="button" className={btn2} disabled={!selection} title={t("closeGapsHelp")} onClick={() => selection && edit(closeGaps(timeline, selection.track.id))}>{t("closeGaps")}</button>
+            </> : null}
+            {f.titles ? <button type="button" className={btn2} onClick={() => { const r = addTitle(timeline, time, t("defaultTitleText")); edit(r.timeline, r.clipId); }}>{t("addTitle")}</button> : null}
+            {f.tracks && timeline.tracks.length < config.limits.maxTracks ? <>
+              <button type="button" className={btn2} title={t("addVideoTrackHelp")} onClick={() => edit(addTrack(timeline, "video"))}>{t("addVideoTrack")}</button>
+              <button type="button" className={btn2} title={t("addAudioTrackHelp")} onClick={() => edit(addTrack(timeline, "audio"))}>{t("addAudioTrack")}</button>
+            </> : null}
+            {f.zoom ? (
+              <div className={`${field} ve-zoom`}>
+                <label htmlFor={`${uid}-zoom`}>{t("zoom")}</label>
+                <input id={`${uid}-zoom`} className={input} type="range" min={10} max={300} step={5} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+              </div>
+            ) : null}
+            <details className="ve-tl__help">
+              <summary>{t("howToEdit")}</summary>
+              <p className="ve-hint">{t("timelineHelp")}</p>
+            </details>
+          </div>
+          <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} />
+        </section>
       </div>
 
-      <section className={cx("panel", "ve-panel")} aria-labelledby={`${uid}-tl`}>
-        <h2 id={`${uid}-tl`} className={cx("heading", "ve-heading")}>{t("timeline")}</h2>
-        <div className={cx("actions", "ve-actions")} role="toolbar" aria-label={t("editingTools")}>
-          {f.history ? <>
-            <button type="button" className={btn2} onClick={() => dispatch({ type: "undo" })} disabled={state.past.length === 0}>{t("undo")}</button>
-            <button type="button" className={btn2} onClick={() => dispatch({ type: "redo" })} disabled={state.future.length === 0}>{t("redo")}</button>
-          </> : null}
-          {f.split ? <button type="button" className={btn2} onClick={split}>{t("split")}</button> : null}
-          <button type="button" className={btn2} disabled={!selection} onClick={() => selection && edit(removeClip(timeline, selection.clip.id), null)}>{t("deleteClip")}</button>
-          {f.arrange ? <>
-            <button type="button" className={btn2} disabled={!selection} onClick={() => selection && edit(rippleRemove(timeline, selection.clip.id), null)}>{t("deleteClose")}</button>
-            <button type="button" className={btn2} disabled={!selection} onClick={() => { const d = selection && duplicateClip(timeline, selection.clip.id); if (d) edit(d.timeline, d.clipId); }}>{t("duplicate")}</button>
-            <button type="button" className={btn2} disabled={!selection} onClick={() => selection && edit(closeGaps(timeline, selection.track.id))}>{t("closeGaps")}</button>
-          </> : null}
-          {f.titles ? <button type="button" className={btn2} onClick={() => { const r = addTitle(timeline, time, t("defaultTitleText")); edit(r.timeline, r.clipId); }}>{t("addTitle")}</button> : null}
-          {f.tracks && timeline.tracks.length < config.limits.maxTracks ? <>
-            <button type="button" className={btn2} onClick={() => edit(addTrack(timeline, "video"))}>{t("addVideoTrack")}</button>
-            <button type="button" className={btn2} onClick={() => edit(addTrack(timeline, "audio"))}>{t("addAudioTrack")}</button>
-          </> : null}
-          {f.zoom ? (
-            <div className={`${field} ve-zoom`}>
-              <label htmlFor={`${uid}-zoom`}>{t("zoom")}</label>
-              <input id={`${uid}-zoom`} className={input} type="range" min={10} max={300} step={5} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
-            </div>
-          ) : null}
+      {/* Export opens over the workspace; it stays mounted so a running export is never lost. */}
+      {canExport ? (
+        <div className="ve-sheet" hidden={!exportOpen} onKeyDown={(e) => { if (e.key === "Escape") setExportOpen(false); }}>
+          <div id={`${uid}-export`} className="ve-sheet__panel" role="dialog" aria-modal="true" aria-label={t("makeVideo")}>
+            <button type="button" className={`${btn2} ve-sheet__close`} onClick={() => setExportOpen(false)}>{t("close")}</button>
+            <ExportPanel engine={engine} duration={duration} fps={size.fps} title={title} current={current} exported={exported} onExported={setExported} onSave={save} exportActions={exportActions} onBefore={() => engine.current?.isPlaying && engine.current.pause()} />
+          </div>
         </div>
-        <TimelinePanel timeline={timeline} selected={selected} playhead={time} zoom={zoom} onSelect={(id) => dispatch({ type: "select", id })} onSeek={seek} onLive={live} onCommit={commit} onEdit={edit} />
-        <p className="ve-hint">{t("timelineHelp")}</p>
-      </section>
-
-      {canExport ? <ExportPanel engine={engine} duration={duration} fps={size.fps} title={title} current={current} exported={exported} onExported={setExported} onSave={save} exportActions={exportActions} onBefore={() => engine.current?.isPlaying && engine.current.pause()} /> : null}
+      ) : null}
     </div>
   );
 }
@@ -393,3 +421,13 @@ function ExportPanel({ engine, duration, fps, title, current, exported, onExport
     </section>
   );
 }
+
+/** A small line drawing for an icon-only button (the button carries the words as its label). */
+function Icon({ d }: { d: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d={d} />
+    </svg>
+  );
+}
+

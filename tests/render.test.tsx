@@ -10,13 +10,13 @@ const html = (props: Record<string, unknown> = {}) => renderToString(<VideoEdito
 describe("the editor renders what is configured", () => {
   it("shows everything by default", () => {
     const out = html();
-    for (const word of ["Upload video, audio or pictures", "Record from this computer", "Split at playhead", "Add title", "Undo", "Preview"]) expect(out).toContain(word);
+    for (const word of ["Upload video, audio or pictures", "Record from this computer", "Split", "Add title", "Undo", "Preview"]) expect(out).toContain(word);
     expect(out).not.toContain("Make the video"); // no uploadExport in the adapter
   });
 
   it("leaves out what is switched off", () => {
     const out = html({ options: { features: { record: false, titles: false, split: false, history: false, mediaPanel: false } } });
-    for (const word of ["Record from this computer", "Add title", "Split at playhead", "Undo", "Upload video"]) expect(out).not.toContain(word);
+    for (const word of ["Record from this computer", "Add title", "Split", "Undo", "Upload video"]) expect(out).not.toContain(word);
     expect(out).toContain("Timeline");
   });
 
@@ -42,5 +42,13 @@ describe("the editor renders what is configured", () => {
     const withExport = { adapter: { ...adapter, uploadExport: async () => ({ ref: "v", kind: "video" as const }) } };
     expect(html({ ...withExport, existingExport: { ref: "v1", kind: "video", url: "blob:local-copy" } })).toContain('src="blob:local-copy"');
     expect(html({ ...withExport, adapter: { ...withExport.adapter, mediaUrl: () => "/m/v1" }, existingExport: { ref: "v1", kind: "video" } })).toContain('src="/m/v1"');
+  });
+
+  it("is a workspace by default, with a slim top bar, and can be one column", () => {
+    const out = html();
+    expect(out).toContain('data-layout="workspace"');
+    expect(out).toContain("ve-topbar");
+    expect(out).toContain("1280 × 720 · 30 fps"); // size and frame rate in the top bar, changed in a popover
+    expect(html({ options: { layout: "stacked" } })).toContain('data-layout="stacked"');
   });
 });

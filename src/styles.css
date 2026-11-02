@@ -40,16 +40,45 @@
 .ve-hint { font-size: 0.85rem; display: block; }
 .ve-panel { background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); padding: var(--ve-gap); min-width: 0; }
 .ve-heading { margin: 0 0 0.5rem; font-size: 1.1rem; }
-.ve-bar { display: flex; flex-wrap: wrap; gap: var(--ve-gap); align-items: flex-end; }
-.ve-bar__title { flex: 1 1 16rem; }
-.ve-bar__save { margin: 0; }
-.ve-main { display: grid; gap: var(--ve-gap); grid-template-columns: 1fr; align-items: start; }
-@media (min-width: 70rem) {
-  .ve-main { grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr) minmax(16rem, 22rem); }
-  .ve-main[data-media="false"][data-inspector="true"] { grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); }
-  .ve-main[data-media="true"][data-inspector="false"] { grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr); }
-  .ve-main[data-media="false"][data-inspector="false"] { grid-template-columns: 1fr; }
+
+/* --- The top bar: one slim row (title, picture settings, history, saving, export). ------------ */
+.ve-topbar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem; background: var(--ve-surface); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); }
+.ve-topbar__title { flex: 1 1 14rem; min-width: 8rem; font-weight: 600; font-size: 1rem; background: transparent !important; border-color: transparent !important; }
+.ve-topbar__title:hover, .ve-topbar__title:focus { border-color: var(--ve-border) !important; background: var(--ve-bg) !important; }
+.ve-topbar__title--static { padding: 0.4rem 0.5rem; }
+.ve-topbar__group { position: relative; display: flex; gap: 0.35rem; align-items: center; }
+.ve-topbar__meta { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ve-topbar__save { margin: 0; font-size: 0.85rem; white-space: nowrap; }
+.ve-topbar__export { margin-left: auto; }
+.ve-popover { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; width: min(22rem, 90vw); padding: 0.9rem; background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
+
+/* --- The workspace: like a desktop editor, everything in view. Media, preview and clip settings
+   side by side, the timeline across the bottom; each part scrolls on its own, so selecting a clip
+   or opening a section never moves the others. The host sets the height (--ve-height). --------- */
+.ve-root { --ve-height: calc(100vh - 2rem); --ve-timeline-height: 16rem; --ve-side: clamp(13rem, 20vw, 18rem); }
+.ve-work { display: grid; gap: 0.5rem; grid-template-columns: 1fr; grid-template-areas: "stage" "tl" "media" "inspector"; }
+.ve-media { grid-area: media; }
+.ve-stage { grid-area: stage; display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
+.ve-inspector { grid-area: inspector; }
+.ve-tl { grid-area: tl; display: flex; flex-direction: column; min-height: 0; }
+.ve-stage__screen { display: grid; place-items: center; background: #000; border-radius: var(--ve-radius); min-height: 12rem; overflow: hidden; }
+@media (min-width: 62rem) {
+  .ve-root[data-layout="workspace"] { display: flex; flex-direction: column; gap: 0.5rem; height: var(--ve-height); min-height: 34rem; }
+  .ve-root[data-layout="workspace"] > .ve-work { flex: 1; min-height: 0;
+    grid-template-columns: minmax(14rem, var(--ve-side)) minmax(0, 1fr) minmax(15rem, var(--ve-side));
+    grid-template-rows: minmax(0, 1fr) var(--ve-timeline-height);
+    grid-template-areas: "media stage inspector" "tl tl tl"; }
+  .ve-root[data-layout="workspace"] .ve-work[data-media="false"] { grid-template-columns: minmax(0, 1fr) minmax(15rem, var(--ve-side)); grid-template-areas: "stage inspector" "tl tl"; }
+  .ve-root[data-layout="workspace"] .ve-work[data-inspector="false"] { grid-template-columns: minmax(14rem, var(--ve-side)) minmax(0, 1fr); grid-template-areas: "media stage" "tl tl"; }
+  .ve-root[data-layout="workspace"] .ve-work[data-media="false"][data-inspector="false"] { grid-template-columns: 1fr; grid-template-areas: "stage" "tl"; }
+  .ve-root[data-layout="workspace"] .ve-media, .ve-root[data-layout="workspace"] .ve-inspector { overflow: auto; min-height: 0; overscroll-behavior: contain; }
+  .ve-root[data-layout="workspace"] .ve-stage__screen { flex: 1; min-height: 0; position: relative; }
+  /* The canvas fills its area and the picture is letterboxed inside it (any aspect: 9:16, 1:1, 16:9). */
+  .ve-root[data-layout="workspace"] .ve-stage__canvas { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
+  .ve-root[data-layout="workspace"] .ve-tl .ve-timeline { flex: 1; min-height: 0; overflow: auto; }
 }
+.ve-root[data-layout="workspace"] .ve-panel { padding: 0.75rem; }
+.ve-root[data-layout="workspace"] .ve-heading { font-size: 0.95rem; }
 .ve-field { display: grid; gap: 0.25rem; margin-bottom: 0.75rem; }
 /* Sizing is the editor's own, whatever the host's: borders and padding inside the width, and no
    control wider than its panel (a file input is as wide as its button and file name otherwise). */
@@ -67,14 +96,37 @@
 .ve-alert { background: var(--ve-danger-bg); color: var(--ve-danger-text); padding: 0.6rem 0.8rem; border-radius: var(--ve-radius); margin: 0; }
 .ve-assets { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
 .ve-assets__name { font-weight: 600; word-break: break-word; }
-.ve-record { border: 1px solid var(--ve-border); border-radius: var(--ve-radius); padding: 0.75rem; margin: 1rem 0; }
+.ve-record { border: 1px solid var(--ve-border); border-radius: var(--ve-radius); padding: 0.6rem 0.75rem; margin: 0.75rem 0; }
 .ve-record__preview { width: 100%; max-height: 14rem; background: #000; border-radius: var(--ve-radius); margin: 0.5rem 0; }
 .ve-record__time, .ve-transport__time { font-variant-numeric: tabular-nums; }
 .ve-inspector fieldset { border: 1px solid var(--ve-border); border-radius: var(--ve-radius); margin: 0 0 0.75rem; }
-.ve-stage__canvas { width: 100%; height: auto; max-height: 60vh; background: #000; border-radius: var(--ve-radius); display: block; object-fit: contain; }
-.ve-transport { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.75rem 0; }
-.ve-transport__time { margin-left: auto; }
-.ve-zoom { margin-left: auto; min-width: 10rem; margin-bottom: 0; }
+/* The picture is as large as its area allows, never cropped or stretched. */
+.ve-stage__canvas { display: block; width: 100%; height: auto; background: #000; object-fit: contain; }
+.ve-root[data-layout="stacked"] .ve-stage__canvas { max-height: 60vh; }
+@media (max-width: 61.99rem) { .ve-stage__canvas { max-height: 55vh; } }
+.ve-transport { display: flex; gap: 0.35rem; align-items: center; }
+.ve-transport .ve-button { flex: none; min-height: 2rem; padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+.ve-transport__play { min-width: 4.5rem; }
+.ve-icon-button { display: inline-grid; place-items: center; width: 2.1rem; padding: 0 !important; }
+.ve-transport__time { flex: none; }
+.ve-transport__position { flex: 1 1 4rem; min-width: 3rem; }
+.ve-transport__time { font-size: 0.85rem; white-space: nowrap; }
+.ve-zoom { margin-left: auto; min-width: 7rem; margin-bottom: 0; display: flex; align-items: center; gap: 0.4rem; }
+.ve-zoom label { font-size: 0.85rem; }
+.ve-tl__tools { margin: 0 0 0.5rem; gap: 0.35rem; }
+.ve-tl__heading { margin: 0 0.5rem 0 0; }
+.ve-tl__tools .ve-button { min-height: 1.9rem; padding: 0.2rem 0.55rem; font-size: 0.8rem; }
+.ve-tl__help { position: relative; font-size: 0.85rem; }
+.ve-tl__help summary { cursor: pointer; color: var(--ve-muted); }
+.ve-tl__help[open] .ve-hint { position: absolute; right: 0; top: 1.6rem; z-index: 20; width: min(28rem, 80vw); padding: 0.75rem; background: var(--ve-bg); border: 1px solid var(--ve-border); border-radius: var(--ve-radius); box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
+.ve-record summary { cursor: pointer; font-weight: 600; }
+.ve-record[open] summary { margin-bottom: 0.5rem; }
+
+/* --- Export opens over the workspace. ---------------------------------------------------------- */
+.ve-sheet { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 0.45); }
+.ve-sheet[hidden] { display: none; }
+.ve-sheet__panel { position: relative; width: min(40rem, 100%); max-height: 90vh; overflow: auto; border-radius: var(--ve-radius); background: var(--ve-bg); }
+.ve-sheet__close { position: absolute; top: 0.6rem; right: 0.6rem; z-index: 1; }
 .ve-timeline { overflow-x: auto; border: 1px solid var(--ve-border); border-radius: var(--ve-radius); background: var(--ve-surface); position: relative; }
 .ve-timeline__inner { position: relative; }
 .ve-timeline__ruler { position: relative; height: 28px; border-bottom: 1px solid var(--ve-border); cursor: pointer; }

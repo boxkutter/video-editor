@@ -104,6 +104,14 @@ options={{
 }}
 ```
 
+## Layout
+
+By default the editor is a **workspace**, like a desktop video editor: a slim top bar, then media, preview
+and clip settings side by side with the timeline across the bottom, each scrolling on its own. Give it a
+height with `--ve-height` (default `calc(100vh - 2rem)`); `--ve-timeline-height` and `--ve-side` size the
+timeline and the side columns. Below 62rem wide the parts stack. `options.layout: "stacked"` puts everything
+in one column.
+
 ## Fitting it in
 
 - **Words:** `labels={{ ... }}` replaces any text (see `DEFAULT_LABELS`), including translations; `{name}` style placeholders are kept.
