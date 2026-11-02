@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
+import { useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import { assetOf, clipEnd, formatTime, moveClip, removeClip, removeTrack, snap, spokenDuration, trimEnd, trimStart, updateTrack, type Clip, type Timeline, type Track } from "../core/timeline";
 import { useCx, useEditor } from "./context";
 import { isMediaDrag, isStyleDrag, isTextDrag, readDrag, type DragPayload } from "./drag";
@@ -55,6 +55,15 @@ export function TimelinePanel({ timeline, selected, playhead, zoom, onSelect, on
   const ticks = Array.from({ length: Math.floor(end / 1000 / step) + 1 }, (_, i) => i * step);
   const kindName = { video: t("trackVideo"), audio: t("trackAudio"), text: t("trackText") } as const;
   const nameOf = (clip: Clip) => (clip.text ? clip.text.content.replace(/\s+/g, " ").slice(0, 40) : (assetOf(timeline, clip)?.name ?? t("clipHeading")));
+
+  // Zooming keeps the playhead in the middle of what can be seen (not the start of the timeline).
+  const zoomed = useRef(zoom);
+  useLayoutEffect(() => {
+    if (zoomed.current === zoom) return;
+    zoomed.current = zoom;
+    const el = scroller.current;
+    if (el) el.scrollLeft = Math.max(0, (playhead / 1000) * zoom - (el.clientWidth - LABEL_WIDTH) / 2);
+  }, [zoom, playhead]);
 
   // Where a drag from the media panel would land: a place on a track, or (for a look) a clip.
   const [target, setTarget] = useState<{ trackId: string; at: number; clipId: string | null; style: boolean } | null>(null);

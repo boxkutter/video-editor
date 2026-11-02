@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1
+- Zooming the timeline keeps the playhead in the middle of the visible part, instead of drifting to the start.
+
 ## 0.5.0
 - **Titles**: fonts (`options.text.fonts`, the host loads them; the system fonts by default), colour
   swatches (`options.text.colours`, plus any colour), capitals, letter and line spacing, an outline,
